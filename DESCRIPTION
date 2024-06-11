@@ -1,0 +1,17 @@
+Package: ITDRMS
+Type: Package
+Title: Isothermal dose-response mass spectrometry analysis
+Version: 0.0.1.0
+Encoding: UTF-8
+RoxygenNote: 7.3.1
+LazyData: true
+Imports: 
+  data.table (>= 1.0.0),
+  tidyverse,
+  magrittr,
+  gtools,
+  drc (>= 3.0.0),
+  patchwork(>= 1.2.0),
+  ggrepel,
+	minpack.lm
+
