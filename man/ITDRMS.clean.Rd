@@ -4,9 +4,6 @@
 \alias{ITDRMS.clean}
 \title{ITDRMS.clean}
 \usage{
-<<<<<<< HEAD
-ITDRMS.clean(data = NULL, keratins = TRUE, serum = TRUE, trypsin = TRUE)
-=======
 ITDRMS.clean(
   data = NULL,
   keratins = TRUE,
@@ -14,7 +11,6 @@ ITDRMS.clean(
   trypsin = TRUE,
   inf.data = TRUE
 )
->>>>>>> 2448b81 (Update)
 }
 \arguments{
 \item{data}{Data frame with the loaded mass spec data}
