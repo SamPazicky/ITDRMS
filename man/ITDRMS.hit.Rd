@@ -10,6 +10,7 @@ ITDRMS.hit(
   R2w = 10,
   nMAD = 3,
   R2line = 0.6,
+  POI = c(),
   plot.settings = list()
 )
 }
@@ -24,13 +25,16 @@ ITDRMS.hit(
 
 \item{R2line}{Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.}
 
+\item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.}
+
 \item{plot.settings}{List of graphical settings for plot. Defaults are: 
 list(labels=TRUE, label.text.size=2.5, label.force=1.3,
 xlims=c(-max(c(abs(hit_data$dAUC)),2), +max(c(2,abs(hit_data$dAUC)))),
 ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
  point.sizes=c(1,2), point.colors=c("gray","red","green"),
  axis.title.size=18, axis.text.size=16,
- legend.position="bottom", legend.text.size=8,legend.title=element_blank())}
+ legend.position="bottom", legend.text.size=8,legend.title=element_blank(),
+ POI.color="blue", POI.size=3.5)}
 }
 \value{
 A list with three elements. $data is a data frame with dAUC and p-values for all proteins, $plot is the volcano plot based on the hits and 
