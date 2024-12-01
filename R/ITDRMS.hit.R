@@ -182,7 +182,7 @@ ITDRMS.hit <- function(
   }
   
   if(length(POI)==0) {
-    addPOI==FALSE 
+    addPOI=FALSE 
   } else {
     POIdata <- hit_data %>%
       filter(id %in% POI)

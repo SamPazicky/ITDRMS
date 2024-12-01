@@ -34,7 +34,9 @@ ITDRMS.clean <- function(
   # remove NA columns
   NAcolumns <- apply( (data%>%dplyr::select(all_of(ratio_columns))),1,function(x) any(is.na(x))) %>% which()
   removed <- data %>% slice(NAcolumns) %>% dplyr::select(id,condition) %>% mutate(removal="NAvalues")
-  data <- data %>% slice(-NAcolumns)
+  if(length(NAcolumns)!=0) {
+    data <- data %>% slice(-NAcolumns)
+  }
   
   # remove keratins 
   if(keratins) {
