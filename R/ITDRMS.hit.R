@@ -4,7 +4,8 @@
 #' @param data Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
 #' @param weighted Logical: If TRUE (default), the resulting adjusted p values will be weighted by R-squared measure of goodness of fit.
 #' @param R2w Integer: How much should the R-squared weight in? Default is 10.
-#' @param nMAD Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Defualt is 3.
+#' @param nMAD Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.
+#' @param mindAUC Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1
 #' @param R2line Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
 #' @param plot.settings List of graphical settings for plot. Defaults are: 
@@ -33,6 +34,7 @@ ITDRMS.hit <- function(
     weighted=TRUE,
     R2w=10,
     nMAD=3,
+    mindAUC=0.1,
     R2line=0.6,
     POI=c(),
     plot.settings=list()) 
@@ -149,8 +151,22 @@ ITDRMS.hit <- function(
     
     na.omit() %>%
     ungroup()
-
-  limits <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
+  
+  if(is.na(nMAD) & is.na(mindAUC)) {
+    stop("Please give either nMAD or mindAUC, or both.")
+  } else if(is.na(nMAD)) {
+    limits <- c(mindAUC,-mindAUC)
+  } else if(is.na(mindAUC)) {
+    limits <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
+  } else {
+    limits1 <- c(mindAUC,-mindAUC)
+    limits2 <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
+    
+    limits <- ifelse(limits1[1]>limits1[2],limits1,limits2)
+    cat("Both nMAD and mindAUC given. Using the higher limit of the two.")
+  }
+  
+  
   
   hit_data <- hit_data %>%
     mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2>=R2line,"hit","")) %>%

@@ -13,6 +13,7 @@ ITDRMS.plot(
   scale = FALSE,
   print.stats = FALSE,
   color.scheme = "rainbow",
+  label.col = NA,
   fit.length = 100,
   pdf.export = FALSE,
   pdf.folder = ".",
@@ -36,6 +37,8 @@ be comparable across proteins!}
 \item{print.stats}{Logical: Should the R2 and p-value be printed in the plots? Default is FALSE.}
 
 \item{color.scheme}{Character string: "rainbow" will plot curves from red to violet from lowest to highest temperature, "distinct" will use distinct colors}
+
+\item{label.col}{Character string: Name of the column to use for plot subtitles.}
 
 \item{fit.length}{Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.}
 

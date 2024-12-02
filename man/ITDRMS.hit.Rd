@@ -9,6 +9,7 @@ ITDRMS.hit(
   weighted = TRUE,
   R2w = 10,
   nMAD = 3,
+  mindAUC = 0.1,
   R2line = 0.6,
   POI = c(),
   plot.settings = list()
@@ -21,7 +22,9 @@ ITDRMS.hit(
 
 \item{R2w}{Integer: How much should the R-squared weight in? Default is 10.}
 
-\item{nMAD}{Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Defualt is 3.}
+\item{nMAD}{Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.}
+
+\item{mindAUC}{Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1}
 
 \item{R2line}{Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.}
 
