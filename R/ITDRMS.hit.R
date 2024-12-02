@@ -169,8 +169,11 @@ ITDRMS.hit <- function(
   } else {
     limits1 <- c(mindAUC,-mindAUC)
     limits2 <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
-    
-    limits <- ifelse(limits1[1]>limits1[2],limits1,limits2)
+    if(limits1[1]>limits2[1]) {
+      limits <- limits1 
+    } else { 
+      limits <- limits2 
+    }
     cat("Both nMAD and mindAUC given. Using the higher limit of the two.\n")
   }
   
