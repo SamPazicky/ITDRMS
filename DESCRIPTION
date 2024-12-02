@@ -3,7 +3,7 @@ Type: Package
 Title: Isothermal dose-response mass spectrometry analysis
 Version: 0.0.1.0
 Encoding: UTF-8
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 LazyData: true
 Imports: 
   data.table (>= 1.0.0),

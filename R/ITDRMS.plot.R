@@ -10,6 +10,7 @@
 #' be comparable across proteins!
 #' @param print.stats Logical: Should the R2 and p-value be printed in the plots? Default is FALSE.
 #' @param color.scheme Character string: "rainbow" will plot curves from red to violet from lowest to highest temperature, "distinct" will use distinct colors
+#' @param label.col Character string: Name of the column to use for plot subtitles.
 #' @param fit.length Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
 #' @param pdf.export Logical: If TRUE (default), a pdf with all plots will be exported.
 #' @param pdf.folder Character string: Name of the directory for pdf export. Default is the working directory.
@@ -35,6 +36,7 @@ ITDRMS.plot <- function(
     scale=FALSE,
     print.stats=FALSE,
     color.scheme="rainbow",
+    label.col=NA,
     fit.length=100,
     pdf.export=FALSE,
     pdf.folder=".",
@@ -134,8 +136,15 @@ ITDRMS.plot <- function(
     data$Replicate=1
   }
   ratio_columns <- names(data)[4:13]
-  ratio_data <- data %>% 
-    dplyr::select(id,condition,label,all_of(ratio_columns))
+  ifelse(is.na(label.col)) {
+    ratio_data <- data %>%
+      mutate(label="")
+  } else {
+    ratio_data <- data %>% 
+      rename(label=!!sym(label.col)) %>%
+      dplyr::select(id,condition,label,all_of(ratio_columns))
+  }
+ 
   conditions <- data$condition %>% unique() %>% gtools::mixedsort()
   
   if(is.na(pdf.name)) {
