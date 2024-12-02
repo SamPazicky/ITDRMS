@@ -98,8 +98,6 @@ ITDRMS.hit <- function(
     return(my.fit.dat)
   }
   
-  minresponse = 1 + minresponse
-  
   fitted <- fit_01sigmoid(data.frame(x=c(1,1.5,2),y=c(0.05,0.5,0.95)))  # equation for calculating p-value
   
   #log4 axis transformation

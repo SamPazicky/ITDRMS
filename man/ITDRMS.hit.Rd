@@ -10,7 +10,7 @@ ITDRMS.hit(
   R2w = 10,
   nMAD = 3,
   mindAUC = 0.1,
-  response = NA,
+  minresponse = NA,
   R2line = 0.6,
   POI = c(),
   plot.settings = list()
@@ -27,6 +27,8 @@ ITDRMS.hit(
 
 \item{mindAUC}{Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1}
 
+\item{minresponse}{Integer: Minimal change in the solubility (e.g. 0.1 for 10% change). Default is NA.}
+
 \item{R2line}{Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.}
 
 \item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.}
@@ -39,8 +41,6 @@ ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
  axis.title.size=18, axis.text.size=16,
  legend.position="bottom", legend.text.size=8,legend.title=element_blank(),
  POI.color="blue", POI.size=3.5)}
-
-\item{minresponse}{Integer: Minimal change in the solubility (e.g. 0.1 for 10% change). Default is NA.}
 }
 \value{
 A list with three elements. $data is a data frame with dAUC and p-values for all proteins, $plot is the volcano plot based on the hits and 
