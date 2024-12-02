@@ -36,7 +36,7 @@ ITDRMS.hit <- function(
     R2w=10,
     nMAD=3,
     mindAUC=0.1,
-    response=NA,
+    minresponse=NA,
     R2line=0.6,
     POI=c(),
     plot.settings=list()) 
