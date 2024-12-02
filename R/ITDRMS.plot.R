@@ -136,7 +136,7 @@ ITDRMS.plot <- function(
     data$Replicate=1
   }
   ratio_columns <- names(data)[4:13]
-  ifelse(is.na(label.col)) {
+  if(is.na(label.col)) {
     ratio_data <- data %>%
       mutate(label="")
   } else {
