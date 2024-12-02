@@ -5,6 +5,7 @@
 #' @param weighted Logical: If TRUE (default), the resulting adjusted p values will be weighted by R-squared measure of goodness of fit.
 #' @param R2w Integer: How much should the R-squared weight in? Default is 10.
 #' @param nMAD Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.
+#' @param minresponse Integer: Minimal change in the solubility (e.g. 0.1 for 10% change). Default is NA.
 #' @param mindAUC Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1
 #' @param R2line Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
@@ -35,6 +36,7 @@ ITDRMS.hit <- function(
     R2w=10,
     nMAD=3,
     mindAUC=0.1,
+    response=NA,
     R2line=0.6,
     POI=c(),
     plot.settings=list()) 
@@ -96,6 +98,8 @@ ITDRMS.hit <- function(
     return(my.fit.dat)
   }
   
+  minresponse = 1 + minresponse
+  
   fitted <- fit_01sigmoid(data.frame(x=c(1,1.5,2),y=c(0.05,0.5,0.95)))  # equation for calculating p-value
   
   #log4 axis transformation
@@ -109,21 +113,24 @@ ITDRMS.hit <- function(
   
   ratio_columns <- data %>% dplyr::select(starts_with("conf.int")) %>% names() %>% str_split(pattern="_") %>%
     as.data.frame() %>% slice(2) %>% unlist() %>% unname()
+  
+  top.conc <- as.character(max(as.numeric(ratio_columns)))
 
   hit_data <- data %>%
-    
+    mutate(response=!!sym(paste0("fit_",top.conc))) %>%
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
-    dplyr::select(id,condition,R2orig,matches(ratio_columns)) %>%
+    dplyr::select(id,condition,R2orig,response,matches(ratio_columns)) %>%
     mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>%
     mutate(R2=ifelse(condition==controlcond,0,R2orig)) %>%
     rename_with(~ paste0("ratio_",.x),all_of(ratio_columns)) %>%
-    pivot_longer(cols=!c(id,condition,R2), names_sep="_", names_to=c(".value","Dose")) %>%
+    # mutate(response=!!sym(paste0("ratio_",top.conc))) %>%
+    pivot_longer(cols=!c(id,condition,R2,response), names_sep="_", names_to=c(".value","Dose")) %>%
     filter(Dose!=0) %>%
     
     mutate(conf.int=ifelse(is.na(conf.int)&(!is.nan(ratio)), ratio/2,conf.int)) %>%
     
-    filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN) # I JUST MOVED THIS ONE LINE UP.
-    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,R2), names_sep="_") %>%
+    filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN)
+    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,R2,response), names_sep="_") %>%
     mutate(across(starts_with("ratio_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>%
     mutate(across(starts_with("conf.int_"), ~ .x + !!sym(paste0("conf.int_",controlcond)), .names="sum.{col}")) %>%
     dplyr::select(!contains(controlcond)) %>%
@@ -138,7 +145,7 @@ ITDRMS.hit <- function(
     mutate(ci.adj=p.adjust(ci,method="BH")) %>%
     ungroup() %>%
     
-    group_by(id,condition,R2) %>%
+    group_by(id,condition,R2,response) %>%
     summarise(sub.ratio=sum(sub.ratio,na.rm=TRUE), ci.mean=prod(ci.adj,na.rm=TRUE)^(1/n())) %>%
     ungroup() %>%
     
@@ -147,8 +154,11 @@ ITDRMS.hit <- function(
     mutate(ci.wt = ci.mean*R2weight) %>%
     
     group_by(id) %>%
-    summarise(dAUC=sum(sub.ratio)/n(), CI= prod(p=ci.wt,na.rm=TRUE), R2mean=1-prod(1-R2,na.rm=TRUE)) %>% rename(R2=R2mean) %>%
-    
+    summarise(dAUC=sum(sub.ratio)/n(), 
+              CI= prod(p=ci.wt,na.rm=TRUE), 
+              R2mean=1-prod(1-R2,na.rm=TRUE),
+              max.response=max(response,na.rm=TRUE)) %>% 
+    rename(R2=R2mean) %>%
     na.omit() %>%
     ungroup()
   
@@ -163,13 +173,17 @@ ITDRMS.hit <- function(
     limits2 <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
     
     limits <- ifelse(limits1[1]>limits1[2],limits1,limits2)
-    cat("Both nMAD and mindAUC given. Using the higher limit of the two.")
+    cat("Both nMAD and mindAUC given. Using the higher limit of the two.\n")
   }
   
-  
-  
+  if(!is.na(minresponse)) {
+    minresponse = minresponse + 1
+  } else {
+    minresponse=1
+  }
+
   hit_data <- hit_data %>%
-    mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2>=R2line,"hit","")) %>%
+    mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2>=R2line&abs(max.response)>=minresponse,"hit","")) %>%
     mutate(Stabilization=ifelse(dAUC<0,"Destabilized","Stabilized"))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")

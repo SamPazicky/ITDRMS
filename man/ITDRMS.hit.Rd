@@ -10,6 +10,7 @@ ITDRMS.hit(
   R2w = 10,
   nMAD = 3,
   mindAUC = 0.1,
+  response = NA,
   R2line = 0.6,
   POI = c(),
   plot.settings = list()
@@ -38,6 +39,8 @@ ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
  axis.title.size=18, axis.text.size=16,
  legend.position="bottom", legend.text.size=8,legend.title=element_blank(),
  POI.color="blue", POI.size=3.5)}
+
+\item{minresponse}{Integer: Minimal change in the solubility (e.g. 0.1 for 10% change). Default is NA.}
 }
 \value{
 A list with three elements. $data is a data frame with dAUC and p-values for all proteins, $plot is the volcano plot based on the hits and 
