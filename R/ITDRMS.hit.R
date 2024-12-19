@@ -176,15 +176,14 @@ ITDRMS.hit <- function(
     }
     cat("Both nMAD and mindAUC given. Using the higher limit of the two.\n")
   }
+  limits=sort(limits)
   
-  if(!is.na(minresponse)) {
-    minresponse = minresponse + 1
-  } else {
-    minresponse=1
+  if(is.na(minresponse)) {
+    minresponse <- 0
   }
 
   hit_data <- hit_data %>%
-    mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2>=R2line&abs(max.response)>=minresponse,"hit","")) %>%
+    mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2>=R2line&abs(max.response-1)>=minresponse,"hit","")) %>%
     mutate(Stabilization=ifelse(dAUC<0,"Destabilized","Stabilized"))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
