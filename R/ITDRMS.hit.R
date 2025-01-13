@@ -5,7 +5,7 @@
 #' @param weighted Logical: If TRUE (default), the resulting adjusted p values will be weighted by R-squared measure of goodness of fit.
 #' @param R2w Integer: How much should the R-squared weight in? Default is 10.
 #' @param nMAD Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.
-#' @param minresponse Integer: Minimal change in the solubility (e.g. 0.1 for 10% change). Default is NA.
+#' @param minresponse Integer: Minimal change in the solubility (e.g. 0.1 for 10 percent change). Default is NA.
 #' @param mindAUC Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1
 #' @param R2line Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
@@ -167,9 +167,9 @@ ITDRMS.hit <- function(
   } else if(is.na(mindAUC)) {
     limits <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
   } else {
-    limits1 <- c(mindAUC,-mindAUC)
-    limits2 <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
-    if(limits1[1]>limits2[1]) {
+    limits1 <- c(-mindAUC,mindAUC)
+    limits2 <- sort(nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC))
+    if(limits1[2]>limits2[2]) {
       limits <- limits1 
     } else { 
       limits <- limits2 
@@ -260,7 +260,7 @@ ITDRMS.hit <- function(
     "Destabilized"=hit_data %>% filter(hit=="hit"&Stabilization=="Destabilized") %>% pull(id)
   )
   
-  output <- list("data"=hit_data, "plot"=hit_plot, "hitlist"=hit_list)
+  output <- list("data"=hit_data, "plot"=hit_plot, "hitlist"=hit_list, "MAD"=limits[2]/nMAD)
   return(output)
   
 }
