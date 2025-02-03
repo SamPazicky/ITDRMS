@@ -115,48 +115,47 @@ ITDRMS.hit <- function(
   top.conc <- as.character(max(as.numeric(ratio_columns)))
 
   hit_data <- data %>%
-    mutate(response=!!sym(paste0("fit_",top.conc))) %>%
+    mutate(response=!!sym(paste0("fit_",top.conc))) %>% # define response as the scaled value at top concentration
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
     dplyr::select(id,condition,R2orig,response,matches(ratio_columns)) %>%
     mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>%
     mutate(R2=ifelse(condition==controlcond,0,R2orig)) %>%
-    rename_with(~ paste0("ratio_",.x),all_of(ratio_columns)) %>%
-    # mutate(response=!!sym(paste0("ratio_",top.conc))) %>%
+    rename_with(~ paste0("ratio_",.x),all_of(ratio_columns)) %>% # organizing the data to longer format
     pivot_longer(cols=!c(id,condition,R2,response), names_sep="_", names_to=c(".value","Dose")) %>%
-    filter(Dose!=0) %>%
-    
+    filter(Dose!=0) %>% # removing zero-dose values
+
     mutate(conf.int=ifelse(is.na(conf.int)&(!is.nan(ratio)), ratio/2,conf.int)) %>%
-    
+
     filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN)
-    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,R2,response), names_sep="_") %>%
-    mutate(across(starts_with("ratio_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>%
-    mutate(across(starts_with("conf.int_"), ~ .x + !!sym(paste0("conf.int_",controlcond)), .names="sum.{col}")) %>%
-    dplyr::select(!contains(controlcond)) %>%
-    pivot_longer(cols=!c(id,Dose), names_to = c(".value", "condition"), names_sep = "_") %>%
+    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,R2,response), names_sep="_") %>% # back to wide
+    mutate(across(starts_with("ratio_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>% # subtract 37 ratio from higher-temp ratios
+    mutate(across(starts_with("conf.int_"), ~ .x + !!sym(paste0("conf.int_",controlcond)), .names="sum.{col}")) %>% # sum 37 conf. interval and each higher-temp conf. interval
+    dplyr::select(!contains(controlcond)) %>% # remove columns with control temperature condition
+    pivot_longer(cols=!c(id,Dose), names_to = c(".value", "condition"), names_sep = "_") %>%# longer format
     na.omit() %>% #to remove NAs from conditions in which the protein was not detected
     mutate(Dose=as.numeric(Dose)) %>%
     mutate(gap=sum.conf.int/abs(sub.ratio)) %>%
     mutate(ci=predict(fitted,data.frame(x=.$gap))) %>%
-    
-    
+
+
     group_by(condition) %>%
     mutate(ci.adj=p.adjust(ci,method="BH")) %>%
     ungroup() %>%
-    
+
     group_by(id,condition,R2,response) %>%
     summarise(sub.ratio=sum(sub.ratio,na.rm=TRUE), ci.mean=prod(ci.adj,na.rm=TRUE)^(1/n())) %>%
     ungroup() %>%
-    
+
     mutate(weighted=weighted) %>%
     mutate(R2weight=ifelse(weighted,(2-R2)^R2w,1)) %>%
     mutate(ci.wt = ci.mean*R2weight) %>%
-    
+
     group_by(id) %>%
-    summarise(dAUC=sum(sub.ratio)/n(), 
-              CI= prod(p=ci.wt,na.rm=TRUE), 
+    summarise(dAUC=sum(sub.ratio)/n(),
+              CI= prod(p=ci.wt,na.rm=TRUE),
               R2mean=1-prod(1-R2,na.rm=TRUE),
-              max.response=max(response,na.rm=TRUE)) %>% 
-    rename(R2=R2mean) %>%
+              R2max=max(R2,na.rm=TRUE),
+              max.response=max(response,na.rm=TRUE)) %>%
     na.omit() %>%
     ungroup()
   
@@ -183,7 +182,7 @@ ITDRMS.hit <- function(
   }
 
   hit_data <- hit_data %>%
-    mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2>=R2line&abs(max.response-1)>=minresponse,"hit","")) %>%
+    mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2max>=R2line&abs(max.response-1)>=minresponse,"hit","")) %>%
     mutate(Stabilization=ifelse(dAUC<0,"Destabilized","Stabilized"))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
