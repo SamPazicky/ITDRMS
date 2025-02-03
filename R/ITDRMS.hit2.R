@@ -1,9 +1,8 @@
-#' ITDRMS.hit
+#' ITDRMS.hit2
 #'
 #' Identifies hits from fitted mass spec data.
 #' @param data Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
 #' @param minresponse Integer: Minimal change in the solubility (e.g. 0.1 for 10 percent change). Default is NA.
-#' @param mindAUC Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1
 #' @param R2line Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
 #' @param plot.settings List of graphical settings for plot. Defaults are: 
