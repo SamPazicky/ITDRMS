@@ -143,7 +143,7 @@ ITDRMS.hit2 <- function(
               CI=prod(p=ci.mean,na.rm=TRUE),
               R2mean=1-prod(1-R2,na.rm=TRUE),
               R2max=max(R2,na.rm=TRUE),
-              sum.response=sum(response,na.rm=TRUE)-1,
+              sum.response=sum(response-1,na.rm=TRUE),
               max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE)-1,min(response,na.rm=TRUE)-1)) %>%
     na.omit() %>%
     ungroup()
@@ -158,7 +158,7 @@ ITDRMS.hit2 <- function(
   plot.settings.defaults <- list(labels=TRUE,
                                  label.text.size=2.5,
                                  label.force=1.3,
-                                 xlims=c(-max(abs(hit_data$max.response)-1,2), +max(2,abs(hit_data$max.response)+1)),
+                                 xlims=c(-max(abs(hit_data$sum.response)-1,2), +max(2,abs(hit_data$sum.response)+1)),
                                  ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
                                  point.sizes=c(1,2),
                                  point.colors=c("gray","red","green"),
