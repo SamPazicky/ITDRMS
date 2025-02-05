@@ -106,8 +106,12 @@ ITDRMS.hit2 <- function(
   
   top.conc <- as.character(max(as.numeric(ratio_columns)))
   
+  data$maxresp <- apply(data[,grepl("fit_",names(data))],1,function(x) max(x,na.rm=TRUE))
+  data$minresp <- apply(data[,grepl("fit_",names(data))],1,function(x) min(x,na.rm=TRUE))
   hit_data <- data %>%
-    mutate(response=!!sym(paste0("fit_",top.conc))) %>% # define response as the scaled value at top concentration
+    mutate(response=ifelse(abs(maxresp)>abs(minresp),maxresp,minresp)) %>%
+    dplyr::select(!ends_with("resp")) %>%
+    # mutate(response=!!sym(paste0("fit_",top.conc))) %>% # define response as the scaled value at top concentration
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
     dplyr::select(id,condition,R2orig,response,matches(ratio_columns)) %>%
     mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>%
@@ -150,7 +154,7 @@ ITDRMS.hit2 <- function(
   
   hit_data <- hit_data %>%
     mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(sum.response)>=minresponse,"hit","")) %>%
-    mutate(Stabilization=ifelse(dAUC<0,"Destabilized","Stabilized"))
+    mutate(Stabilization=ifelse(sum.response<0,"Destabilized","Stabilized"))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
   
