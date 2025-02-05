@@ -109,7 +109,7 @@ ITDRMS.hit2 <- function(
   data$maxresp <- apply(data[,grepl("fit_",names(data))],1,function(x) max(x,na.rm=TRUE))
   data$minresp <- apply(data[,grepl("fit_",names(data))],1,function(x) min(x,na.rm=TRUE))
   hit_data <- data %>%
-    mutate(response=ifelse(abs(maxresp)>abs(minresp),maxresp,minresp)) %>%
+    mutate(response=ifelse(abs(maxresp-1)>abs(minresp-1),maxresp-1,minresp-1)) %>%
     dplyr::select(!ends_with("resp")) %>%
     # mutate(response=!!sym(paste0("fit_",top.conc))) %>% # define response as the scaled value at top concentration
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
@@ -147,8 +147,8 @@ ITDRMS.hit2 <- function(
               CI=prod(p=ci.mean,na.rm=TRUE),
               R2mean=1-prod(1-R2,na.rm=TRUE),
               R2max=max(R2,na.rm=TRUE),
-              sum.response=sum(response-1,na.rm=TRUE),
-              max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE)-1,min(response,na.rm=TRUE)-1)) %>%
+              sum.response=sum(response,na.rm=TRUE),
+              max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
     na.omit() %>%
     ungroup()
   
