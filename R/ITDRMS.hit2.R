@@ -143,7 +143,7 @@ ITDRMS.hit2 <- function(
               CI=prod(p=ci.mean,na.rm=TRUE),
               R2mean=1-prod(1-R2,na.rm=TRUE),
               R2max=max(R2,na.rm=TRUE),
-              sum.response=sum(response.na.rm=TRUE)-1,
+              sum.response=sum(response,na.rm=TRUE)-1,
               max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE)-1,min(response,na.rm=TRUE)-1)) %>%
     na.omit() %>%
     ungroup()
