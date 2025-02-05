@@ -108,22 +108,39 @@ ITDRMS.hit2 <- function(
   
   data$maxresp <- apply(data[,grepl("fit_",names(data))],1,function(x) max(x,na.rm=TRUE))
   data$minresp <- apply(data[,grepl("fit_",names(data))],1,function(x) min(x,na.rm=TRUE))
+  
+  responses <- data %>%
+    dplyr::select(id,condition,starts_with("fit_")) %>%
+    pivot_longer(cols=starts_with("fit"),names_to="concentration",values_to="fraction_soluble") %>%
+    pivot_wider(id_cols=c(id,concentration),names_from=condition,values_from=fraction_soluble) %>%
+    mutate(across(!c(id,concentration), ~ .x - !!sym(controlcond), .names = "response.{col}")) %>%
+    dplyr::select(id,concentration,starts_with("response")) %>%
+    pivot_longer(cols=starts_with("response"), names_to="condition",values_to="response", names_prefix="response.") %>%
+    filter(condition!=controlcond) %>%
+    na.omit() %>%
+    group_by(id,condition) %>%
+    dplyr::summarise(maxresp=max(response,na.rm=TRUE), minresp=min(response,na.rm=TRUE)) %>%
+    ungroup() %>%
+    mutate(response=ifelse(abs(maxresp)>abs(minresp),maxresp,minresp)) %>%
+    dplyr::select(!ends_with("resp"))
+    
+  
   hit_data <- data %>%
-    mutate(response=ifelse(abs(maxresp-1)>abs(minresp-1),maxresp-1,minresp-1)) %>%
+    # mutate(response=ifelse(abs(maxresp-1)>abs(minresp-1),maxresp-1,minresp-1)) %>%
     dplyr::select(!ends_with("resp")) %>%
     # mutate(response=!!sym(paste0("fit_",top.conc))) %>% # define response as the scaled value at top concentration
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
-    dplyr::select(id,condition,R2orig,response,matches(ratio_columns)) %>%
+    dplyr::select(id,condition,R2orig,matches(ratio_columns)) %>%
     mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>%
     mutate(R2=ifelse(condition==controlcond,0,R2orig)) %>%
     rename_with(~ paste0("ratio_",.x),all_of(ratio_columns)) %>% # organizing the data to longer format
-    pivot_longer(cols=!c(id,condition,R2,response), names_sep="_", names_to=c(".value","Dose")) %>%
+    pivot_longer(cols=!c(id,condition,R2), names_sep="_", names_to=c(".value","Dose")) %>%
     filter(Dose!=0) %>% # removing zero-dose values
     
     mutate(conf.int=ifelse(is.na(conf.int)&(!is.nan(ratio)), ratio/2,conf.int)) %>%
     
     filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN)
-    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,fit,R2,response), names_sep="_") %>% # back to wide
+    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,fit,R2), names_sep="_") %>% # back to wide
     mutate(across(starts_with("fit_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>% # subtract 37 ratio from higher-temp ratios
     mutate(across(starts_with("conf.int_"), ~ .x + !!sym(paste0("conf.int_",controlcond)), .names="sum.{col}")) %>% # sum 37 conf. interval and each higher-temp conf. interval
     dplyr::select(!contains(controlcond)) %>% # remove columns with control temperature condition
@@ -138,14 +155,16 @@ ITDRMS.hit2 <- function(
     mutate(ci.adj=p.adjust(ci,method="BH")) %>%
     ungroup() %>%
     
-    group_by(id,condition,R2,response) %>%
+    group_by(id,condition,R2) %>%
     summarise(sub.fit=sum(sub.fit,na.rm=TRUE), ci.mean=prod(ci.adj,na.rm=TRUE)^(1/n())) %>%
     ungroup() %>%
-
+    
+    left_join(responses,by=c("id","condition")) %>%
+    
     group_by(id) %>%
     summarise(dAUC=sum(sub.fit)/n(),
               CI=prod(p=ci.mean,na.rm=TRUE),
-              R2mean=1-prod(1-R2,na.rm=TRUE),
+              R2prod=1-prod(1-R2,na.rm=TRUE),
               R2max=max(R2,na.rm=TRUE),
               sum.response=sum(response,na.rm=TRUE),
               max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
