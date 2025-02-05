@@ -236,7 +236,7 @@ ITDRMS.hit2 <- function(
   
   if(addPOI) {
     hit_plot <- hit_plot + 
-      geom_point(data=POIdata, aes(dAUC,-log(CI,10)), color=plot.settings$POI.color,size=plot.settings$POI.size)
+      geom_point(data=POIdata, aes(sum.response,-log(CI,10)), color=plot.settings$POI.color,size=plot.settings$POI.size)
   }
   
   if(plot.settings$labels) {
