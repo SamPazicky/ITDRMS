@@ -19,7 +19,9 @@ ITDRMS.hit2(
 
 \item{R2line}{Double: R2 cut-off. Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.}
 
-\item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.
+\item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.}
+
+\item{plot.settings}{List of graphical settings for plot. The defaults are:
 \preformatted{
 list(
   labels = TRUE,

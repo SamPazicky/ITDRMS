@@ -5,6 +5,7 @@
 #' @param minresponse Integer vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5).
 #' @param R2line Double: R2 cut-off. Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
+#' @param plot.settings List of graphical settings for plot. The defaults are:
 #' \preformatted{
 #' list(
 #'   labels = TRUE,
@@ -179,7 +180,6 @@ ITDRMS.hit2 <- function(
               R2max=max(R2,na.rm=TRUE),
               sum.response=sum(response,na.rm=TRUE),
               max.response=ifelse(sum.response>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
-              # max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
     na.omit() %>%
     ungroup() %>%
     mutate(total.response=sum.response+max.response) %>%
@@ -189,6 +189,8 @@ ITDRMS.hit2 <- function(
   if(!is.na(minresponse[2])) {
     hit_data <- hit_data %>%
       mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(total.response)>=minresponse[2],"candidate",""))
+  } else {
+    hit_data <- hit_data %>% mutate(hit="")
   }
   hit_data <- hit_data %>%
     mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(total.response)>=minresponse[1],"hit",hit))
