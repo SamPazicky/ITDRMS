@@ -2,17 +2,28 @@
 #'
 #' Identifies hits from fitted mass spec data.
 #' @param data Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
-#' @param minresponse Integer: Minimal change in the solubility (e.g. 0.1 for 10 percent change). Default is NA.
-#' @param R2line Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
+#' @param minresponse Integer vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5).
+#' @param R2line Double: R2 cut-off. Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
-#' @param plot.settings List of graphical settings for plot. Defaults are: 
-#' list(labels=TRUE, label.text.size=2.5, label.force=1.3,
-#' xlims=c(-max(c(abs(hit_data$dAUC)),2), +max(c(2,abs(hit_data$dAUC)))),
-#' ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
-#'  point.sizes=c(1,2), point.colors=c("gray","red","green"),
-#'  axis.title.size=18, axis.text.size=16,
-#'  legend.position="bottom", legend.text.size=8,legend.title=element_blank(),
-#'  POI.color="blue", POI.size=3.5)
+#' \preformatted{
+#' list(
+#'   labels = TRUE,
+#'   label.text.size = 2.5,
+#'   label.force = 1.3,
+#'   xlims = c(-max(1, abs(hit_data$total.response)) - 1, 
+#'             max(1, abs(hit_data$total.response)) + 1),
+#'   ylims = c(min(-log10(hit_data$CI)), max(-log10(hit_data$CI))),
+#'   point.sizes = c(1, 2),
+#'   point.colors = c("gray", "red3", "green3", "coral2", "darkolivegreen2"),
+#'   axis.title.size = 18,
+#'   axis.text.size = 16,
+#'   legend.position = "bottom",
+#'   legend.text.size = 8,
+#'   legend.title = element_blank(),
+#'   POI.color = "blue",
+#'   POI.size = 3.5
+#' )
+#' }
 #' 
 #' @import tidyverse
 #' @import magrittr
@@ -28,7 +39,7 @@
 
 ITDRMS.hit2 <- function(
     data=NULL,
-    minresponse=0.2,
+    minresponse=c(1,0.5),
     R2line=0.6,
     POI=c(),
     plot.settings=list()) 
@@ -167,13 +178,20 @@ ITDRMS.hit2 <- function(
               R2prod=1-prod(1-R2,na.rm=TRUE),
               R2max=max(R2,na.rm=TRUE),
               sum.response=sum(response,na.rm=TRUE),
-              max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
+              max.response=ifelse(sum.response>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
+              # max.response=ifelse(sum(sub.fit)/n()>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
     na.omit() %>%
-    ungroup()
-  
-  hit_data <- hit_data %>%
-    mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(sum.response)>=minresponse,"hit","")) %>%
+    ungroup() %>%
+    mutate(total.response=sum.response+max.response) %>%
     mutate(Stabilization=ifelse(sum.response<0,"Destabilized","Stabilized"))
+    
+  
+  if(!is.na(minresponse[2])) {
+    hit_data <- hit_data %>%
+      mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(total.response)>=minresponse[2],"candidate",""))
+  }
+  hit_data <- hit_data %>%
+    mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(total.response)>=minresponse[1],"hit",hit))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
   
@@ -181,10 +199,10 @@ ITDRMS.hit2 <- function(
   plot.settings.defaults <- list(labels=TRUE,
                                  label.text.size=2.5,
                                  label.force=1.3,
-                                 xlims=c(-max(abs(hit_data$sum.response)-1,2), +max(2,abs(hit_data$sum.response)+1)),
+                                 xlims=c(-max(1,abs(hit_data$total.response))-1, +max(1,abs(hit_data$total.response))+1),
                                  ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
                                  point.sizes=c(1,2),
-                                 point.colors=c("gray","red","green"),
+                                 point.colors=c("gray","red3","green3","coral2","darkolivegreen2"),
                                  axis.title.size=18,
                                  axis.text.size=16,
                                  legend.position="bottom",
@@ -214,18 +232,50 @@ ITDRMS.hit2 <- function(
     }
   }
   
-  
-  
-  hit_plot <- hit_data %>% ggplot(aes(sum.response,-log(CI,10))) +
-    geom_hline(yintercept=-log10(0.05), linetype="dashed", color="gray80") +
-    geom_vline(xintercept=minresponse, linetype="dashed", color="gray80") +
-    geom_vline(xintercept=(-1)*minresponse, linetype="dashed", color="gray80") +
-    geom_point(aes(color=interaction(Stabilization,hit, sep=" "),alpha=hit,size=interaction(Stabilization,hit, sep=" "))) +
-    scale_color_manual(values=c(plot.settings$point.colors[1],plot.settings$point.colors[1],plot.settings$point.colors[2],plot.settings$point.colors[3]), name="Proteins", drop=FALSE)  +
-    scale_alpha_manual(values=c(0.3,1), name="Stabilization") +
-    scale_size_manual(values=c(plot.settings$point.sizes[1],plot.settings$point.sizes[1],plot.settings$point.sizes[2],plot.settings$point.sizes[2]), name="Proteins",drop=FALSE) +
+  hit_plot <- hit_data %>% ggplot(aes(total.response, -log10(CI))) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray80") +
+    geom_vline(xintercept = min(minresponse), linetype = "dashed", color = "gray80") +
+    geom_vline(xintercept = (-1) * min(minresponse), linetype = "dashed", color = "gray80") +
+    geom_point(aes(
+      color = interaction(Stabilization, hit, sep = " "),
+      alpha = interaction(Stabilization, hit, sep = " "),
+      size = interaction(Stabilization, hit, sep = " ")
+    )) +
+    scale_color_manual(
+      values = c(
+        `Destabilized ` = plot.settings$point.colors[1],
+        `Stabilized ` = plot.settings$point.colors[1],
+        `Destabilized hit` = plot.settings$point.colors[2],
+        `Stabilized hit` = plot.settings$point.colors[3],
+        `Destabilized candidate` = plot.settings$point.colors[4],
+        `Stabilized candidate` = plot.settings$point.colors[5]
+      ),
+      name = "Proteins", drop = TRUE
+    ) +
+    scale_alpha_manual(
+      values = c(
+        `Destabilized ` = 0.3,
+        `Stabilized ` = 0.3,
+        `Destabilized hit` = 1,
+        `Stabilized hit` = 1,
+        `Destabilized candidate` = 1,
+        `Stabilized candidate` = 1
+      ),
+      name = "Proteins", drop = TRUE
+    ) +
+    scale_size_manual(
+      values = c(
+        `Destabilized ` = plot.settings$point.sizes[1],
+        `Stabilized ` = plot.settings$point.sizes[1],
+        `Destabilized hit` = plot.settings$point.sizes[2],
+        `Stabilized hit` = plot.settings$point.sizes[2],
+        `Destabilized candidate` = plot.settings$point.sizes[1],
+        `Stabilized candidate` = plot.settings$point.sizes[1]
+      ),
+      name = "Proteins", drop = TRUE
+    ) +
     customPlot +
-    scale_x_continuous(limits=plot.settings$xlims, name="dAUC", expand = c(0,0)) +
+    scale_x_continuous(limits=plot.settings$xlims, name="Total response", expand = c(0,0)) +
     scale_y_continuous(name="Confidence index", limits=plot.settings$ylims) +
     guides(alpha="none") + 
     theme(legend.position=plot.settings$legend.position,
@@ -236,7 +286,7 @@ ITDRMS.hit2 <- function(
   
   if(addPOI) {
     hit_plot <- hit_plot + 
-      geom_point(data=POIdata, aes(sum.response,-log(CI,10)), color=plot.settings$POI.color,size=plot.settings$POI.size)
+      geom_point(data=POIdata, aes(total.response,-log(CI,10)), color=plot.settings$POI.color,size=plot.settings$POI.size)
   }
   
   if(plot.settings$labels) {
@@ -246,8 +296,10 @@ ITDRMS.hit2 <- function(
   
   
   hit_list=list(
-    "Stabilized"=hit_data %>% filter(hit=="hit"&Stabilization=="Stabilized") %>% pull(id),
-    "Destabilized"=hit_data %>% filter(hit=="hit"&Stabilization=="Destabilized") %>% pull(id)
+    "Stabilized_hits"=hit_data %>% filter(hit=="hit"&Stabilization=="Stabilized") %>% pull(id),
+    "Destabilized_hits"=hit_data %>% filter(hit=="hit"&Stabilization=="Destabilized") %>% pull(id),
+    "Stabilized_candidates"=hit_data %>% filter(hit=="candidate"&Stabilization=="Stabilized") %>% pull(id),
+    "Destabilized_candidates"=hit_data %>% filter(hit=="candidate"&Stabilization=="Destabilized") %>% pull(id)
   )
   
   output <- list("data"=hit_data, "plot"=hit_plot, "hitlist"=hit_list)

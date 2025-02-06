@@ -6,7 +6,7 @@
 \usage{
 ITDRMS.hit2(
   data = NULL,
-  minresponse = 0.2,
+  minresponse = c(1, 0.5),
   R2line = 0.6,
   POI = c(),
   plot.settings = list()
@@ -15,20 +15,30 @@ ITDRMS.hit2(
 \arguments{
 \item{data}{Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.}
 
-\item{minresponse}{Integer: Minimal change in the solubility (e.g. 0.1 for 10 percent change). Default is NA.}
+\item{minresponse}{Integer vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5).}
 
-\item{R2line}{Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.}
+\item{R2line}{Double: R2 cut-off. Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.}
 
-\item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.}
-
-\item{plot.settings}{List of graphical settings for plot. Defaults are: 
-list(labels=TRUE, label.text.size=2.5, label.force=1.3,
-xlims=c(-max(c(abs(hit_data$dAUC)),2), +max(c(2,abs(hit_data$dAUC)))),
-ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
- point.sizes=c(1,2), point.colors=c("gray","red","green"),
- axis.title.size=18, axis.text.size=16,
- legend.position="bottom", legend.text.size=8,legend.title=element_blank(),
- POI.color="blue", POI.size=3.5)}
+\item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.
+\preformatted{
+list(
+  labels = TRUE,
+  label.text.size = 2.5,
+  label.force = 1.3,
+  xlims = c(-max(1, abs(hit_data$total.response)) - 1, 
+            max(1, abs(hit_data$total.response)) + 1),
+  ylims = c(min(-log10(hit_data$CI)), max(-log10(hit_data$CI))),
+  point.sizes = c(1, 2),
+  point.colors = c("gray", "red3", "green3", "coral2", "darkolivegreen2"),
+  axis.title.size = 18,
+  axis.text.size = 16,
+  legend.position = "bottom",
+  legend.text.size = 8,
+  legend.title = element_blank(),
+  POI.color = "blue",
+  POI.size = 3.5
+)
+}}
 }
 \value{
 A list with three elements. $data is a data frame with dAUC and p-values for all proteins, $plot is the volcano plot based on the hits and 
