@@ -141,7 +141,6 @@ ITDRMS.hit2 <- function(
     
   
   hit_data <- data %>%
-    # mutate(response=ifelse(abs(maxresp-1)>abs(minresp-1),maxresp-1,minresp-1)) %>%
     dplyr::select(!ends_with("resp")) %>%
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
     dplyr::select(id,condition,R2orig,matches(ratio_columns)) %>%
@@ -238,7 +237,7 @@ ITDRMS.hit2 <- function(
     }
   }
   
-  hit_plot <- hit_data %>% ggplot(aes(total.response, -log10(CI))) %>%
+  hit_plot <- hit_data %>% ggplot(aes(total.response, -log10(CI))) +
     geom_hline(yintercept = -log10(ifelse(secondline,CIthreshold[2],CIthreshold[1])), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = min(minresponse), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = (-1) * min(minresponse), linetype = "dashed", color = "gray80") +
