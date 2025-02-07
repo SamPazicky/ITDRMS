@@ -2,8 +2,10 @@
 #'
 #' Identifies hits from fitted mass spec data.
 #' @param data Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
-#' @param minresponse Integer vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5).
-#' @param R2line Double: R2 cut-off. Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
+#' @param CIthreshold Numeric vector: Confidence index cutoff. Default is c(0.05,0.1) for hits and candidates, respectively.
+#' @param minresponse Numeric vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5) for hits and candidates, respectively.
+#' @param R2line Numeric vector: R2  cutoff: Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
+#' Default is c(0.6,0.7) for hits and candidates, respectively.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
 #' @param plot.settings List of graphical settings for plot. The defaults are:
 #' \preformatted{
@@ -40,8 +42,9 @@
 
 ITDRMS.hit2 <- function(
     data=NULL,
+    CIthreshold=c(0.05,0.1),
     minresponse=c(1,0.5),
-    R2line=0.6,
+    R2line=c(0.6,0.7),
     POI=c(),
     plot.settings=list()) 
 {
@@ -140,7 +143,6 @@ ITDRMS.hit2 <- function(
   hit_data <- data %>%
     # mutate(response=ifelse(abs(maxresp-1)>abs(minresp-1),maxresp-1,minresp-1)) %>%
     dplyr::select(!ends_with("resp")) %>%
-    # mutate(response=!!sym(paste0("fit_",top.conc))) %>% # define response as the scaled value at top concentration
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
     dplyr::select(id,condition,R2orig,matches(ratio_columns)) %>%
     mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>%
@@ -186,14 +188,16 @@ ITDRMS.hit2 <- function(
     mutate(Stabilization=ifelse(sum.response<0,"Destabilized","Stabilized"))
     
   
-  if(!is.na(minresponse[2])) {
+  if(!is.na(minresponse[2] & !is.na(CIthreshold[2] & !is.na(R2line[2])))) {
     hit_data <- hit_data %>%
-      mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(total.response)>=minresponse[2],"candidate",""))
+      mutate(hit=ifelse(CI<=CIthreshold[2]&R2max>=R2line[2]&abs(total.response)>=minresponse[2],"candidate",""))
+    secondline=TRUE
   } else {
     hit_data <- hit_data %>% mutate(hit="")
+    secondline=FALSE
   }
   hit_data <- hit_data %>%
-    mutate(hit=ifelse(CI<=0.05&R2max>=R2line&abs(total.response)>=minresponse[1],"hit",hit))
+    mutate(hit=ifelse(CI<=CIthreshold[1]&R2max>=R2line[1]&abs(total.response)>=minresponse[1],"hit",hit))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
   
@@ -234,8 +238,13 @@ ITDRMS.hit2 <- function(
     }
   }
   
-  hit_plot <- hit_data %>% ggplot(aes(total.response, -log10(CI))) +
-    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray80") +
+  hit_plot <- hit_data %>% ggplot(aes(total.response, -log10(CI)))
+  if(secondline) {
+    hit_plot <- hit_plot +
+      geom_hline(yintercept = -log10(CIthreshold[2]), linetype = "dashed", color = "gray80") 
+  }
+  hit_plot <- hit_plot +
+    geom_hline(yintercept = -log10(CIthreshold[1]), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = min(minresponse), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = (-1) * min(minresponse), linetype = "dashed", color = "gray80") +
     geom_point(aes(

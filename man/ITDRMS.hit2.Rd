@@ -6,8 +6,9 @@
 \usage{
 ITDRMS.hit2(
   data = NULL,
+  CIthreshold = c(0.05, 0.1),
   minresponse = c(1, 0.5),
-  R2line = 0.6,
+  R2line = c(0.6, 0.7),
   POI = c(),
   plot.settings = list()
 )
@@ -15,9 +16,12 @@ ITDRMS.hit2(
 \arguments{
 \item{data}{Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.}
 
-\item{minresponse}{Integer vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5).}
+\item{CIthreshold}{Numeric vector: Confidence index cutoff. Default is c(0.05,0.1) for hits and candidates, respectively.}
 
-\item{R2line}{Double: R2 cut-off. Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.}
+\item{minresponse}{Numeric vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5) for hits and candidates, respectively.}
+
+\item{R2line}{Numeric vector: R2  cutoff: Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
+Default is c(0.6,0.7) for hits and candidates, respectively.}
 
 \item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.}
 

@@ -217,7 +217,6 @@ ITDRMS.plot <- function(
       pivot_longer(cols=!Dose, names_to="condition", values_to="Fraction_soluble")
     
     cur_conditions <- sapply(cur_data$condition%>%unique()%>%gtools::mixedsort(), function(x) grep(x,conditions)) %>% unname()
-    
     wishmin=0
     wishmax=2
     if(scale) {
