@@ -134,7 +134,7 @@ fit_MC <- function(data) {
 }
 
 #` progress_lapply
-progress_lapply <- function(X, FUN, ...) {
+progress_lapply <- function(X, FUN, pb, ...) {
   result <- vector("list", length(X))
   zz<-file("temp.txt",open="wt")
   sink(zz, type="message")

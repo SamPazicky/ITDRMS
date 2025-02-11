@@ -155,10 +155,12 @@ ITDRMS.fit = function(
   conds_fitresults_fits <- list()
   cat("Fitting curves with log-logistic function... \n")
   
+  pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
   if(ncores<=1) {
-    pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
+    
     conds_fitresults_fits <- progress_lapply(1:nrow(ratio_data_conds), 
-                                        function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx,outlier.removal=outlier.removal))
+                                        function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx,outlier.removal=outlier.removal),
+                                        pb)
   } else {
     require(parabar)
     require(parallel)
