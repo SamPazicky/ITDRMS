@@ -60,8 +60,15 @@ ITDRMS.fit = function(
   fits=list()
   
   ratio_data_control <- ratio_data[grep(controlcond,row.names(ratio_data)),]
-  control_fitresults <- data.frame() 
+  column_names <- c(paste0("conf.int_", ratio_columns), 
+                    paste0("fit_", ratio_columns), 
+                    "fit", "R2", "Slope", "EC50")
   
+  # Create an empty data frame with these column names
+  control_fitresults <- data.frame(matrix(ncol = length(column_names), nrow = 0)) %>%
+    setNames(column_names) %>%
+    mutate(across(everything(), as.numeric)) %>%
+    mutate(fit=as.character(fit))
   
   cat("\nFitting control lines... \n")
   
@@ -74,14 +81,17 @@ ITDRMS.fit = function(
     condition <- ratio_data_control %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[2]
     id <- ratio_data_control %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[1]
     fitname <- ratio_data_control %>% slice(i) %>% rownames()
-    fit_data <- ratio_data_control %>% slice(i) %>% t() %>% as.data.frame() %>% rownames_to_column() %>%
+    fit_data_orig <- ratio_data_control %>% slice(i) %>% t() %>% as.data.frame() %>% rownames_to_column() %>%
       mutate(across(everything(), as.double)) %>% setNames(c("x","y"))
-    fit_data$x[1] <- fit_data$x[2]/dil.factor
+    fit_data <- fit_data_orig
+    fit_data$x[1] <- fit_data_orig$x[2]/dil.factor
     y=fit_data$y
     prev_rem <- which(is.na(y))
     if(length(prev_rem)==0) {
       prev_rem=length(y)+1
     } 
+    cur_ratio_names <- ratio_columns[-prev_rem]
+    
     x=fit_data$x[-prev_rem]
     y=fit_data$y[-prev_rem]
     cur_ratio_columns = ratio_columns[-prev_rem]
@@ -97,10 +107,10 @@ ITDRMS.fit = function(
       
       #calculate linear prediction intervals
       control_fitresults <- bind_rows(control_fitresults,
-                                      predict(linear, newdata=fit_data%>%dplyr::select(x), interval="confidence") %>% as.data.frame() %>% 
+                                      predict(linear, newdata=cur_fit_data%>%dplyr::select(x), interval="confidence") %>% as.data.frame() %>% 
                                         mutate(half=upr-fit) %>% dplyr::select(fit, half) %>% setNames(c("fit","conf.int")) %>% 
-                                        mutate(x=format(fit_data%>%dplyr::pull(x),scientific=FALSE, trim=TRUE)) %>% pivot_longer(cols=!x) %>% unite("rowname",name,x) %>%
-                                        mutate(rowname=str_remove(rowname,"0+$")) %>% mutate(rowname=str_remove(rowname,"\\.$")) %>% 
+                                        mutate(x=cur_ratio_names) %>% pivot_longer(cols=!x) %>% unite("rowname",name,x) %>%
+                                        mutate(rowname=str_remove(rowname,"\\.$")) %>% 
                                         mutate(rowname=factor(rowname,levels=gtools::mixedsort(unique(rowname)))) %>% arrange(rowname) %>% 
                                         column_to_rownames("rowname") %>% t() %>% as.data.frame() %>%
                                         mutate(fit="lm", "R2"=R2linear,"Slope"=coefficients(linear)[2],"EC50"=NA)
@@ -158,7 +168,7 @@ ITDRMS.fit = function(
   pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
   if(ncores<=1) {
     
-    conds_fitresults_fits <- progress_lapply(1:nrow(ratio_data_conds), 
+    conds_fitresults_fits <- progress_lapply(1:100, #nrow(ratio_data_conds), 
                                         function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx,outlier.removal=outlier.removal),
                                         pb)
   } else {
@@ -166,7 +176,7 @@ ITDRMS.fit = function(
     require(parallel)
     set_option("progress_track", TRUE)
     set_option("stop_forceful", TRUE)
-    backend <- start_backend(cores = 5, cluster_type = "psock", backend_type = "async")
+    backend <- start_backend(cores = ncores, cluster_type = "psock", backend_type = "async")
     export(backend, c("pb","ITDRMS_sub.fit","fit_sigmoid", "outlier.removal","ratio_data_conds"), envir = environment())
     
     conds_fitresults_fits <- par_lapply(backend, 1:nrow(ratio_data_conds), function(x)
