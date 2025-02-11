@@ -2,6 +2,7 @@
 #'
 #' Fits the scaled data.
 #' @param data Data frame scaled mass spec data
+#' @param ncores Integer: How many cores to use for fitting. Default is 1.
 #' @param fit.length Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
 #' @param control.slope Boolean: Can the control temperature lines be fitted with y=ax+b (TRUE) or just a horizontal line (y=b)?
 #' @param outlier.removal Logical: If TRUE (default is TRUE), outliers will be identified as points that significantly worsen the fit and removed.
@@ -18,6 +19,7 @@
 
 ITDRMS.fit = function(
     data=NULL,
+    ncores=1,
     fit.length=100,
     control.slope=FALSE,
     outlier.removal=TRUE)

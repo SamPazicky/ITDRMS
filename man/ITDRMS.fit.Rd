@@ -6,6 +6,7 @@
 \usage{
 ITDRMS.fit(
   data = NULL,
+  ncores = 1,
   fit.length = 100,
   control.slope = FALSE,
   outlier.removal = TRUE
@@ -13,6 +14,8 @@ ITDRMS.fit(
 }
 \arguments{
 \item{data}{Data frame scaled mass spec data}
+
+\item{ncores}{Integer: How many cores to use for fitting. Default is 1.}
 
 \item{fit.length}{Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.}
 
