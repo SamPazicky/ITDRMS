@@ -163,8 +163,8 @@ ITDRMS.fit = function(
     set_option("progress_track", TRUE)
     set_option("stop_forceful", TRUE)
     backend <- start_backend(cores = 5, cluster_type = "psock", backend_type = "async")
-    export(backend, c("progress_update","progress_counter","pb","ITDRMS_sub.fit","fit_sigmoid","ratio_data_conds",
-                      "outlier.removal","dil.factor","ratio_columns","ratio_data"), envir = environment())
+    export(backend, c("pb","ITDRMS_sub.fit","fit_sigmoid", "outlier.removal",
+                      "dil.factor","ratio_columns","ratio_data"), envir = environment())
     
     conds_fitresults <- par_lapply(backend, 1:nrow(ratio_data_conds), function(x) 
       ITDRMS_sub.fit(data=ratio_data_conds,i=x,outlier.removal=outlier.removal)

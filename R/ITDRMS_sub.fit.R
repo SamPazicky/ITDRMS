@@ -5,8 +5,20 @@ ITDRMS_sub.fit = function(
     outlier.removal=TRUE
 ) {
   
-  require(tidyverse)
-  require(data.table)
+  dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE)
+  dil.factor <- mean(dils[-length(dils)]/dils[-1]) %>% round(2)
+  
+  
+  controlcond <- grep("^[[:digit:]]*C$", unique(data$condition), value=TRUE)
+  conditions <- unique(data$condition)[-grep(controlcond,unique(data$condition))]
+  
+  suppressWarnings(
+    ratio_columns <- try(names(data) %>% as.numeric() %>% .[!is.na(.)] %>% as.character(),silent=TRUE)
+  )
+  ratio_data <- data %>% 
+    remove_rownames() %>% unite("rowname",id,condition,sep=";") %>% column_to_rownames("rowname") %>%
+    dplyr::select(all_of(ratio_columns))
+  
   
   conds_fitresults <- data.frame() 
   condition <- data %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[2]
