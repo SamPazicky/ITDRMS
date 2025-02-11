@@ -168,7 +168,7 @@ ITDRMS.fit = function(
   pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
   if(ncores<=1) {
     
-    conds_fitresults_fits <- progress_lapply(1:100, #nrow(ratio_data_conds), 
+    conds_fitresults_fits <- progress_lapply(1:nrow(ratio_data_conds), 
                                         function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx,outlier.removal=outlier.removal),
                                         pb)
   } else {
@@ -183,6 +183,7 @@ ITDRMS.fit = function(
       ITDRMS_sub.fit(data=ratio_data_conds,i=x,outlier.removal=outlier.removal)
     )
     stop_backend(backend)
+    names(conds_fitresults_fits) <- rownames(ratio_data_conds)
   }
   
   conds_fitresults <- lapply(conds_fitresults_fits, function(x) x$data) %>%
