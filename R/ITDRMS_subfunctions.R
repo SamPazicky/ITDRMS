@@ -133,6 +133,7 @@ fit_MC <- function(data) {
   return(my.fit.dat)
 }
 
+#` progress_lapply
 progress_lapply <- function(X, FUN, ...) {
   result <- vector("list", length(X))
   zz<-file("temp.txt",open="wt")

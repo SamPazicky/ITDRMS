@@ -5,21 +5,15 @@ ITDRMS_sub.fit = function(
     outlier.removal=TRUE
 ) {
   
+  require(tidyverse)
+  require(data.table)
+  
   dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE)
   dil.factor <- mean(dils[-length(dils)]/dils[-1]) %>% round(2)
-  
-  
-  controlcond <- grep("^[[:digit:]]*C$", unique(data$condition), value=TRUE)
-  conditions <- unique(data$condition)[-grep(controlcond,unique(data$condition))]
   
   suppressWarnings(
     ratio_columns <- try(names(data) %>% as.numeric() %>% .[!is.na(.)] %>% as.character(),silent=TRUE)
   )
-  ratio_data <- data %>% 
-    remove_rownames() %>% unite("rowname",id,condition,sep=";") %>% column_to_rownames("rowname") %>%
-    dplyr::select(all_of(ratio_columns))
-  
-  
   conds_fitresults <- data.frame() 
   condition <- data %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[2]
   id <- data %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[1]
@@ -36,12 +30,10 @@ ITDRMS_sub.fit = function(
   y=fit_data$y[-prev_rem]
   cur_ratio_columns = ratio_columns[-prev_rem]
   cur_fit_data<-data.frame("x"=x,"y"=y)
-  
   # try fitting LL.4 - for non-control conditions
-  
   if(!str_detect(condition,"[[:digit:]]C$")) {
     sigmoid <- try(fit_sigmoid(cur_fit_data),silent=TRUE)
-    if(!class(sigmoid)=="list"&any(!is.na(sigmoid))) {
+    if(!class(sigmoid)=="list"&!class(sigmoid)=="try-error"&any(!is.na(sigmoid))) {
       R2sigmoid <- 1 - sum((residuals(sigmoid)^2))/sum((y-mean(y))^2)
       R2sigmoid_orig <- R2sigmoid
       if(outlier.removal) {
@@ -91,31 +83,27 @@ ITDRMS_sub.fit = function(
   
   if(outlier.removal) {
     cur_ratio_columns <- cur_ratio_columns[-outlier]
-    
   }
   
+
   if(class(sigmoid)!="list"&!is.na(class(sigmoid))) {
     suppressWarnings(R2 <- 1 - sum((residuals(sigmoid)^2))/sum((cur_fit_data$y-mean(cur_fit_data$y))^2))
     
     suppressWarnings(
-      conds_fitresults <- bind_rows(conds_fitresults,
-                                    predict(sigmoid, newdata=cur_fit_data%>%dplyr::select(x), interval="confidence") %>% as.data.frame() %>% 
-                                      mutate(half=Upper-Prediction) %>% dplyr::select(Prediction, half) %>% setNames(c("fit","conf.int")) %>% 
-                                      mutate(x=format(cur_fit_data%>%dplyr::pull(x),scientific=F, trim=TRUE)) %>% pivot_longer(cols=!x) %>% unite("rowname",name,x) %>%
-                                      mutate(rowname=str_remove(rowname,"0+$")) %>% mutate(rowname=str_remove(rowname,"\\.$")) %>% 
-                                      mutate(rowname=factor(rowname,levels=gtools::mixedsort(unique(rowname)))) %>% arrange(rowname) %>% 
-                                      column_to_rownames("rowname") %>% t() %>% as.data.frame() %>%
-                                      mutate("fit"="nls","R2"=R2sigmoid,"R2orig"=R2sigmoid_orig, Slope=coefficients(sigmoid)[1],"EC50"=coefficients(sigmoid)[3])
-      )
+      conds_fitresults <- predict(sigmoid, newdata=cur_fit_data%>%dplyr::select(x), interval="confidence") %>% as.data.frame() %>% 
+        mutate(half=Upper-Prediction) %>% dplyr::select(Prediction, half) %>% setNames(c("fit","conf.int")) %>% 
+        mutate(x=format(cur_fit_data%>%dplyr::pull(x),scientific=F, trim=TRUE)) %>% pivot_longer(cols=!x) %>% unite("rowname",name,x) %>%
+        mutate(rowname=str_remove(rowname,"0+$")) %>% mutate(rowname=str_remove(rowname,"\\.$")) %>% 
+        mutate(rowname=factor(rowname,levels=gtools::mixedsort(unique(rowname)))) %>% arrange(rowname) %>% 
+        column_to_rownames("rowname") %>% t() %>% as.data.frame() %>%
+        mutate("fit"="nls","R2"=R2sigmoid,"R2orig"=R2sigmoid_orig, Slope=coefficients(sigmoid)[1],"EC50"=coefficients(sigmoid)[3])
     )
     
   } else {
     colnamehelper <- format(as.numeric(fit_data$x),scientific=F, trim=TRUE)%>%as.character()%>%str_remove("(0)+$")%>%str_remove("\\.$")
-    conds_fitresults <- bind_rows(conds_fitresults,
-                                  data.frame("rows"=c(colnamehelper,"fit","R2","R2orig","Slope","EC50"), "values"=rep(NA,5+ncol(ratio_data))) %>%
-                                    column_to_rownames("rows") %>% setNames(row.names(data)[i]) %>% t() %>% as.data.frame() %>%
-                                    setNames(c(paste0("fit_",colnamehelper), "fit","R2","R2orig","Slope","EC50"))
-    )
+    conds_fitresults <- data.frame("rows"=c(colnamehelper,"fit","R2","R2orig","Slope","EC50"), "values"=rep(NA,5+ncol(data))) %>%
+      column_to_rownames("rows") %>% setNames(row.names(data)[i]) %>% t() %>% as.data.frame() %>%
+      setNames(c(paste0("fit_",colnamehelper), "fit","R2","R2orig","Slope","EC50"))
   }
   output <- list(
     data=conds_fitresults,

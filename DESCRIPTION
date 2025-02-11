@@ -15,7 +15,7 @@ Imports:
   ggrepel,
   minpack.lm,
   ggrepel
-Suggests: 
-    knitr,
-    rmarkdown
+Suggests:
+  parallel,
+  parabar
 VignetteBuilder: knitr
