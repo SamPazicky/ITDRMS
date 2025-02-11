@@ -22,7 +22,7 @@ ITDRMS.scale(
 
 \item{normalization.points}{Integer: How many points should be used for baseline normalization of high temperature data points? Default is 1, but 2 are recommended for 10 doses and even more for more doses, depending on the thermal behaviour of the studied system.}
 
-\item{normalize.baseline}{Logical: If TRUE (default), all points of baseline data (lowest temperature) will be used to normalize the baseline and the average position of all points will be 1. If FALSE, the number of points given in 'normalization.points' will be used.}
+\item{normalize.baseline}{Logical: If TRUE (default), all points of baseline data (lowest temperature) will be used to normalize the baseline and the average position of all points will be 1.}
 
 \item{normalize.selection}{Vector of length 2: If the data should be normalized only on a subset of data, what column and value should be used? For example, 
 'normalize.selection=c("Organism","Pf")' will normalized only based on the data that have value 'Pf' in the column 'Organism'. Default is NULL.}

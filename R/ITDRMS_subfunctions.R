@@ -49,6 +49,38 @@ fit_sigmoid <- function(data, e_guess_lim=0.2) {
   return(my.fit.dat)
 }
 
+#' fit_any_sigmoid
+
+fit_any_sigmoid <- function(data, e_guess_lim=0.2) {
+  
+  require(drc)
+  
+  if(length(data$x)!=length(data$y)) {
+    stop("Vectors x and y do not have the same length.")
+  }
+  
+  my.fit.dat <-
+    tryCatch(
+      drc::drm(formula = y ~ x, data=data, fct = LL.4(fixed=c(NA,NA,NA,NA)), na.action=na.omit,
+               # start=c(b=b_guess,c=c_guess, e=e_guess),
+               lower=c(1,-30,-40,data$x[2]),
+               upper=c(20,30,20,data$x[length(data$x)-1])
+      ),
+      
+      error=function(cond){
+        return(NA)
+      },
+      finally={  
+      }
+      
+    )
+  
+  if(class(my.fit.dat)=="try-error") {
+    my.fit.dat=NA
+  }
+  return(my.fit.dat)
+}
+
 #' mynthroot
 
 
@@ -99,4 +131,17 @@ fit_MC <- function(data) {
   )
 
   return(my.fit.dat)
+}
+
+progress_lapply <- function(X, FUN, ...) {
+  result <- vector("list", length(X))
+  zz<-file("temp.txt",open="wt")
+  sink(zz, type="message")
+  for (i in seq_along(X)) {
+    result[[i]] <- FUN(X[[i]], ...)  # Apply function
+    setTxtProgressBar(pb, i)  # Update progress
+  }
+  sink(NULL,type="message")
+  close(pb)  # Close progress bar when done
+  return(result)
 }

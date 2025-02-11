@@ -5,7 +5,7 @@
 #' @param remove.control.outliers Logical. If TRUE (default), the program will remove baseline points that significantly deviate from a straight line fit.
 #' @param remove.hightemp.outliers Logical: If TRUE (default is FALSE), the program will remove high temperature data points that significantly deviate from a straight line fit. This can reduce false positives but also true positives. Use with caution. 
 #' @param normalization.points Integer: How many points should be used for baseline normalization of high temperature data points? Default is 1, but 2 are recommended for 10 doses and even more for more doses, depending on the thermal behaviour of the studied system.
-#' @param normalize.baseline Logical: If TRUE (default), all points of baseline data (lowest temperature) will be used to normalize the baseline and the average position of all points will be 1. If FALSE, the number of points given in 'normalization.points' will be used.
+#' @param normalize.baseline Logical: If TRUE (default), all points of baseline data (lowest temperature) will be used to normalize the baseline and the average position of all points will be 1.
 #' @param normalize.selection Vector of length 2: If the data should be normalized only on a subset of data, what column and value should be used? For example, 
 #' 'normalize.selection=c("Organism","Pf")' will normalized only based on the data that have value 'Pf' in the column 'Organism'. Default is NULL.
 #'
@@ -118,7 +118,7 @@ ITDRMS.scale = function(
   norm1columns <- gtools::mixedsort(ratio_columns)[1:normalization.points]
   for(i in 1:nrow(ratio_data_abadj)) {
     ratio_data_abadj[i,] <- ratio_data_abadj[i,]/mean(unlist(ratio_data_abadj[i,norm1columns]))
-    
+
   }
   
   # calculate normalization factors
@@ -144,6 +144,7 @@ ITDRMS.scale = function(
   if (remove.control.outliers) {
     cat("Removing control outliers...\n")
     controldata <- ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),]
+    after.out.intercepts <- c()
     
     x=names(controldata) %>% as.numeric()
     x_adj = x
@@ -151,30 +152,56 @@ ITDRMS.scale = function(
     
     pb <- txtProgressBar(min=0, max=nrow(controldata), style=3, initial="")
     for (i in 1:nrow(controldata)) {
+      protein <- rownames(controldata)[i] %>% str_split_i(";",1)
       y=controldata %>% slice(i) %>% unlist() %>% unname() 
-      trialfit <- try(lm(formula = y ~ log(x_adj,dil.factor), na.action=na.omit), silent=TRUE)
+      trialfit <- try(lm(formula = y ~ 1, na.action=na.omit), silent=TRUE)
       excl_fit_Rs <- list()
       for (j in 1:length(x)) {
         y_dif <- y[-j]
         x_dif <- x_adj[-j]
-        y_dif <- y_dif + (1-mean(y_dif))
-        exfit <- try(lm(formula = y_dif ~ log(x_dif,dil.factor), na.action=na.omit), silent=TRUE) 
-        excl_fit_Rs[[j]] <- abs(exfit$coefficients[2]) #summary(exfit)$r.squared
+        # y_dif <- y_dif + (1-mean(y_dif))
+        exfit <- try(lm(formula = y_dif ~ 1, na.action=na.omit), silent=TRUE)
+        if(class(exfit)!="try-error") {
+          excl_fit_Rs[[j]] <- abs(exfit$coefficients[1]) #summary(exfit)$sigma
+        }
       }
       
-      outlier <- excl_fit_Rs %>% setNames(x) %>% stack() %>% setNames(c("R","x")) %>% 
-        add_row(data.frame(R=abs(trialfit$coefficients[2]),x=NA)) %>%
-        filter(R<mean(R)-2*sd(R)) %>% pull(x) %>% as.character()
-        
+      outlier.table <- excl_fit_Rs %>% setNames(x) %>% stack() %>% setNames(c("R","x")) %>% 
+        add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
+        mutate(z=scale(R)) 
+      outlier <- outlier.table %>%
+        filter(abs(z)>=0) %>%
+        slice_max(abs(z)) %>% 
+        pull(x) %>% .[1] %>% as.character()
+
       if(length(outlier)>0 ) {
         if(!is.na(outlier)) {
           controldata[i,outlier] <- NA
+          after.out.intercepts[protein] <- outlier.table %>% filter(x==outlier) %>% pull(R)
         }
-      } 
+      } else {
+        after.out.intercepts[protein] <- outlier.table %>% filter(is.na(x)) %>% pull(R)
+      }
+      
       
       setTxtProgressBar(pb, i)
     }
     close(pb)
+    
+    after.out.intercepts <- stack(after.out.intercepts) %>% setNames(c("correction","id"))
+    # normalize baseline
+    if(normalize.baseline) {
+      cat("Normalizing baseline to 1...\n")
+      controldata <- controldata %>%
+        rownames_to_column("id.condition") %>%
+        separate_wider_delim(cols=id.condition,delim=";",names=c("id","condition")) %>%
+        left_join(after.out.intercepts,by="id") %>%
+        mutate(across(!c(id,condition), ~ .x + 1 - correction)) %>%
+        mutate(rowname=paste0(id,";",condition)) %>%
+        column_to_rownames("rowname") %>%
+        dplyr::select(!c(id,condition,correction))
+    }
+    
     ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),] <- controldata
   }
   
@@ -196,24 +223,26 @@ ITDRMS.scale = function(
     pb <- txtProgressBar(min=0, max=nrow(hightempdata), style=3, initial="")
     for (i in 1:nrow(hightempdata)) {
       y=hightempdata %>% slice(i) %>% unlist() %>% unname() 
-      trialfit <- try(lm(formula = y ~ log(x_adj,dil.factor), na.action=na.omit), silent=TRUE)
+      trialfit <- try(lm(formula = y ~ 1, na.action=na.omit), silent=TRUE)
       excl_fit_Rs <- list()
       for (j in 1:length(x)) {
         y_dif <- y[-j]
         x_dif <- x_adj[-j]
-        y_dif <- y_dif + (1-mean(y_dif))
-        exfit <- try(lm(formula = y_dif ~ log(x_dif,dil.factor), na.action=na.omit), silent=TRUE) 
-        excl_fit_Rs[[j]] <- abs(exfit$coefficients[2]) #summary(exfit)$r.squared
+        # y_dif <- y_dif + (1-mean(y_dif))
+        exfit <- try(lm(formula = y_dif ~ 1, na.action=na.omit), silent=TRUE) 
+        excl_fit_Rs[[j]] <- abs(exfit$coefficients[1]) #summary(exfit)$r.squared
       }
       
       outlier <- excl_fit_Rs %>% setNames(x) %>% stack() %>% setNames(c("R","x")) %>% 
-        add_row(data.frame(R=abs(trialfit$coefficients[2]),x=NA)) %>%
-        filter(R<(mean(R)-2*sd(R))) %>% filter(R<=0.1) %>% pull(x) %>% as.character()
-      
+        add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
+        mutate(z=scale(R)) %>%
+        filter(abs(z)>=2) %>%
+        filter(abs(R-1)<=0.1) %>% pull(x) %>% as.character()
+      # outlier <- if(length(outlier)>1){ outlier <- c()}
       # filter(y<(mean(y)-2*sd(y)) | y>(mean(y)+2*sd(y))) %>% filter(y==min(abs(y))) %>% pull(x) %>% as.character()
       
       if(length(outlier)>0 ) {
-        if(!is.na(outlier)) {
+        if(!is.na(outlier[1])) {
           hightempdata[i,outlier] <- NA
         }
       } 
@@ -227,19 +256,7 @@ ITDRMS.scale = function(
     close(pb)
     ratio_data_norm[grep(controlcond,rownames(ratio_data_norm), invert=TRUE),] <- hightempdata
   }
-  
-  
-  # normalize baseline
-  if(normalize.baseline) {
-    cat("Normalizing baseline to 1...\n")
-    controldata <- ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),]
-    for (i in 1:nrow(controldata)) {
-      controldata[i,] <- controldata[i,] + 1 - mean(controldata[i,]%>%unlist(),na.rm=TRUE)
-    }
-    ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),] <- controldata
-    
-  }
-  
+ 
   all_data <- bind_cols(all_data, ratio_data_norm%>%rename_with(~str_c("Norm_",.x)))
   
   plotdata <- bind_rows(plotdata,
@@ -250,8 +267,6 @@ ITDRMS.scale = function(
                           mutate(set="Post-normalization adjustment")
   )
   
-  
-
   plot <- all_data %>% 
     dplyr::select(id,condition,all_of(ratio_columns),contains("_")) %>%
     dplyr::select(!starts_with("Abundance")) %>% 

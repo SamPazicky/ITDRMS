@@ -4,12 +4,19 @@
 \alias{ITDRMS.fit}
 \title{ITDRMS.fit}
 \usage{
-ITDRMS.fit(data = NULL, fit.length = 100, outlier.removal = TRUE)
+ITDRMS.fit(
+  data = NULL,
+  fit.length = 100,
+  control.slope = FALSE,
+  outlier.removal = TRUE
+)
 }
 \arguments{
 \item{data}{Data frame scaled mass spec data}
 
 \item{fit.length}{Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.}
+
+\item{control.slope}{Boolean: Can the control temperature lines be fitted with y=ax+b (TRUE) or just a horizontal line (y=b)?}
 
 \item{outlier.removal}{Logical: If TRUE (default is TRUE), outliers will be identified as points that significantly worsen the fit and removed.}
 }
