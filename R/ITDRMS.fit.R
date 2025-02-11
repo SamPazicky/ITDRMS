@@ -187,7 +187,7 @@ ITDRMS.fit = function(
   
   conds_fitresults <- lapply(conds_fitresults_fits, function(x) x$data) %>%
     rbindlist(use.names=TRUE,fill=TRUE)
-  fits <- c(fits, lapply(conds_fitresults_fits, function(x) x$fits))
+  fits <- c(fits, lapply(conds_fitresults_fits, function(x) x$fit))
   
   fitresults <- bind_rows(control_fitresults,conds_fitresults)
   # if the calculated EC50 is lower than lowest drug concentration, then it might as well just be an outlier in the
