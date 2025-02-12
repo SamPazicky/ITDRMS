@@ -42,6 +42,7 @@ ITDRMS.fit = function(
   suppressWarnings(
     ratio_columns <- try(names(data) %>% as.numeric() %>% .[!is.na(.)] %>% as.character(),silent=TRUE)
   )
+  
   ratio_data <- data %>% 
     remove_rownames() %>% unite("rowname",id,condition,sep=";") %>% column_to_rownames("rowname") %>%
     dplyr::select(all_of(ratio_columns))
