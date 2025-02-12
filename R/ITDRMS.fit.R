@@ -39,6 +39,11 @@ ITDRMS.fit = function(
   controlcond <- grep("^[[:digit:]]*C$", unique(data$condition), value=TRUE)
   conditions <- unique(data$condition)[-grep(controlcond,unique(data$condition))]
   
+  data <- data  %>%
+    mutate(condition=factor(condition,levels=c(controlcond,conditions))) %>%
+    arrange(condition,id) %>%
+    mutate(condition=as.character(condition))
+  
   suppressWarnings(
     ratio_columns <- try(names(data) %>% as.numeric() %>% .[!is.na(.)] %>% as.character(),silent=TRUE)
   )
