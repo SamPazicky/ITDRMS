@@ -77,12 +77,12 @@ ITDRMS.plot <- function(
 
       type=all_hits[i,"Slope"]
       if(is.na(type)) {
-        seletion="Stabilization.plausibility"
+        selection="Stabilization.plausibility"
       } else {
         if(type>0) {
-          selection="Stabilization.plausability"
+          selection="Stabilization.plausibility"
         } else {
-          selection="Destabilization.plausability"
+          selection="Destabilization.plausibility"
         }
       }
      

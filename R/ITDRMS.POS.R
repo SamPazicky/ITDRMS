@@ -27,20 +27,20 @@ ITDRMS.POS <- function(
     mutate(temperature=as.numeric(str_extract(temperature,"[[:digit:]]+")))
   
   if(nrow(protein_reference)==0) {
-    plausabilities <- data.frame("Temperature"=temperatures,
-                                 "Stabilization plausability"=rep(NA,length(temperatures)),
-                                 "Destabilization plausability"=rep(NA,length(temperatures)),
+    plausibilities <- data.frame("Temperature"=temperatures,
+                                 "Stabilization plausibility"=rep(NA,length(temperatures)),
+                                 "Destabilization plausibility"=rep(NA,length(temperatures)),
                                  "SD"=rep(NA,length(temperatures))
     )
   } else {
     
-    plausabilities <- data.frame()
+    plausibilities <- data.frame()
     data <- protein_reference %>% setNames(c("x","y"))%>%na.omit()
     fit <- fit_MC(data)
     
     if(class(fit)=="try-error") {
      
-      plausabilities <- bind_rows(plausabilities,
+      plausibilities <- bind_rows(plausibilities,
                                   data.frame("Temperature"=temperatures,
                                              "Prediction"=rep(NA,length(temperatures))
                                   )
@@ -49,21 +49,21 @@ ITDRMS.POS <- function(
       
       prediction <- predict(fit, data.frame(x=temperatures))
       
-      plausabilities <- bind_rows(plausabilities,
+      plausibilities <- bind_rows(plausibilities,
                                   data.frame("Temperature"=temperatures,
                                              "Prediction"=prediction
                                   )
       )
     }
       
-    plausabilities <- plausabilities %>%
+    plausibilities <- plausibilities %>%
       group_by(Temperature) %>%
       dplyr::summarise(mean_pred=mean(Prediction,na.rm=TRUE)) %>%
       mutate(op_mean_pred=1-mean_pred) %>%
       dplyr::select(Temperature, op_mean_pred,mean_pred) %>%
-      setNames(c("Temperature","Stabilization.plausability", "Destabilization.plausability"))
+      setNames(c("Temperature","Stabilization.plausibility", "Destabilization.plausibility"))
   }
   
-  return(plausabilities)
+  return(plausibilities)
 
 }
