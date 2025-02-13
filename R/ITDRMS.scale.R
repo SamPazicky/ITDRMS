@@ -237,9 +237,8 @@ ITDRMS.scale = function(
         add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
         mutate(z=scale(R)) %>%
         filter(abs(z)>=2) %>%
-        filter(abs(R-1)<=0.1) %>% pull(x) %>% as.character()
-      # outlier <- if(length(outlier)>1){ outlier <- c()}
-      # filter(y<(mean(y)-2*sd(y)) | y>(mean(y)+2*sd(y))) %>% filter(y==min(abs(y))) %>% pull(x) %>% as.character()
+        filter(abs(R-1)<=0.1) %>%
+        slice_max(abs(z)) %>% pull(x) %>% as.character()
       
       if(length(outlier)>0 ) {
         if(!is.na(outlier[1])) {

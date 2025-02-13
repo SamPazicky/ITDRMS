@@ -31,7 +31,7 @@ ITDRMS_sub.fit = function(
   cur_ratio_columns = ratio_columns[-prev_rem]
   cur_fit_data<-data.frame("x"=x,"y"=y)
   # try fitting LL.4 - for non-control conditions
-  if(!str_detect(condition,"[[:digit:]]C$")) {
+  if(!str_detect(condition,"[[:digit:]]C$")|length(prev_rem>1)) {
     sigmoid <- try(fit_sigmoid(cur_fit_data),silent=TRUE)
     if(!class(sigmoid)=="list"&!class(sigmoid)=="try-error"&any(!is.na(sigmoid))) {
       R2sigmoid <- 1 - sum((residuals(sigmoid)^2))/sum((y-mean(y))^2)
@@ -97,7 +97,7 @@ ITDRMS_sub.fit = function(
   } else {
     conds_fitresults <- data.frame("rows"=c(cur_ratio_columns,"fit","R2","R2orig","Slope","EC50"), "values"=rep(NA,5+length(cur_ratio_columns))) %>%
       column_to_rownames("rows") %>% setNames(row.names(data)[i]) %>% t() %>% as.data.frame() %>%
-      setNames(c(paste0("fit_",cur_ratio_columns), "fit","R2","R2orig","Slope","EC50"))
+      setNames(c(if(length(cur_ratio_columns)==0){NULL} else {paste0("fit_",cur_ratio_columns)}, "fit","R2","R2orig","Slope","EC50"))
   }
   output <- list(
     data=conds_fitresults,
