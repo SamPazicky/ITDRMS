@@ -17,8 +17,6 @@
 #' @examples 
 #' data_scaled <- ITDRMS.scale(data_cleaned)
 #' @export
- 
-
 
 ITDRMS.scale = function(
     data=NULL,
@@ -27,9 +25,9 @@ ITDRMS.scale = function(
     normalization.points=1, # how many points to use
     normalize.baseline=TRUE,
     normalize.selection=NULL # can be c("column","value") to normalize only based on a selection from column
-    )
+)
 {
-
+  
   customPlot <- list(
     theme_bw(base_size = 12),
     theme(panel.grid.major=element_blank(),
@@ -37,7 +35,6 @@ ITDRMS.scale = function(
           plot.margin=ggplot2::margin(5,5,5,5, "pt")
     )
   )
-  
   
   if(is.null(data)) {
     stop("Please include data")
@@ -118,7 +115,7 @@ ITDRMS.scale = function(
   norm1columns <- gtools::mixedsort(ratio_columns)[1:normalization.points]
   for(i in 1:nrow(ratio_data_abadj)) {
     ratio_data_abadj[i,] <- ratio_data_abadj[i,]/mean(unlist(ratio_data_abadj[i,norm1columns]))
-
+    
   }
   
   # calculate normalization factors
@@ -170,10 +167,10 @@ ITDRMS.scale = function(
         add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
         mutate(z=scale(R)) 
       outlier <- outlier.table %>%
-        filter(abs(z)>=0) %>%
+        filter(abs(z)>=2) %>%
         slice_max(abs(z)) %>% 
         pull(x) %>% .[1] %>% as.character()
-
+      
       if(length(outlier)>0 ) {
         if(!is.na(outlier)) {
           controldata[i,outlier] <- NA
@@ -230,19 +227,43 @@ ITDRMS.scale = function(
         x_dif <- x_adj[-j]
         # y_dif <- y_dif + (1-mean(y_dif))
         exfit <- try(lm(formula = y_dif ~ 1, na.action=na.omit), silent=TRUE) 
-        excl_fit_Rs[[j]] <- abs(exfit$coefficients[1]) #summary(exfit)$r.squared
+        excl_fit_Rs[[j]] <- abs(exfit$coefficients[1])
       }
       
-      outlier <- excl_fit_Rs %>% setNames(x) %>% stack() %>% setNames(c("R","x")) %>% 
+      outlier.table <- excl_fit_Rs %>% setNames(x) %>% stack() %>% setNames(c("R","x")) %>% 
         add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
         mutate(z=scale(R)) %>%
         filter(abs(z)>=2) %>%
-        filter(abs(R-1)<=0.1) %>%
-        slice_max(abs(z)) %>% pull(x) %>% as.character()
+        filter(abs(R-1)<=0.15) %>%
+        slice_max(abs(z))
+      outlier <- outlier.table %>% pull(x) %>% as.character()
       
       if(length(outlier)>0 ) {
         if(!is.na(outlier[1])) {
-          hightempdata[i,outlier] <- NA
+          first.z=abs(c(unlist(outlier.table[1,"z"])))
+          # another round. If there is another outlier point, then do not remove any of them. If there is none, remove the first one.
+          yred <- hightempdata[i,] %>% dplyr::select(!all_of(outlier))
+          xred <- names(yred) %>% as.numeric
+          xred[1]=xred[2]/dil.factor
+          yred <- unname(unlist(yred))
+          excl_fit_Rs <- list()
+          trialfit <- try(lm(formula = yred ~ 1, na.action=na.omit), silent=TRUE)
+          for (jj in 1:length(xred)) {
+            y_dif <- yred[-jj]
+            x_dif <- xred[-jj]
+            # y_dif <- y_dif + (1-mean(y_dif))
+            exfit <- try(lm(formula = y_dif ~ 1, na.action=na.omit), silent=TRUE) 
+            excl_fit_Rs[[jj]] <- abs(exfit$coefficients[1]) #summary(exfit)$r.squared
+          }
+          second.z <- excl_fit_Rs %>% setNames(xred) %>% stack() %>% setNames(c("R","x")) %>% 
+            add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
+            mutate(z=scale(R)) %>%
+            slice_max(abs(z)) %>%
+            pull(z) %>% unlist() %>% c() %>% abs()
+          
+          if(second.z<=(first.z-0.1)) {
+            hightempdata[i,outlier] <- NA
+          }
         }
       } 
       
@@ -255,7 +276,7 @@ ITDRMS.scale = function(
     close(pb)
     ratio_data_norm[grep(controlcond,rownames(ratio_data_norm), invert=TRUE),] <- hightempdata
   }
- 
+  
   all_data <- bind_cols(all_data, ratio_data_norm%>%rename_with(~str_c("Norm_",.x)))
   
   plotdata <- bind_rows(plotdata,
