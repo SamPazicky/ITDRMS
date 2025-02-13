@@ -141,7 +141,7 @@ ITDRMS.scale = function(
   if (remove.control.outliers) {
     cat("Removing control outliers...\n")
     controldata <- ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),]
-    after.out.intercepts <- c()
+    after.out.intercepts <- rep(NA,nrow(controldata)) %>% setNames(rownames(controldata) %>% str_split_i(";",1))
     
     x=names(controldata) %>% as.numeric()
     x_adj = x
@@ -171,11 +171,9 @@ ITDRMS.scale = function(
         slice_max(abs(z)) %>% 
         pull(x) %>% .[1] %>% as.character()
       
-      if(length(outlier)>0 ) {
-        if(!is.na(outlier)) {
-          controldata[i,outlier] <- NA
-          after.out.intercepts[protein] <- outlier.table %>% filter(x==outlier) %>% pull(R)
-        }
+      if(length(outlier)>0 & !is.na(outlier)) {
+        controldata[i,outlier] <- NA
+        after.out.intercepts[protein] <- outlier.table %>% filter(x==outlier) %>% pull(R)
       } else {
         after.out.intercepts[protein] <- outlier.table %>% filter(is.na(x)) %>% pull(R)
       }
