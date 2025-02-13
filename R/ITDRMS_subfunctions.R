@@ -136,13 +136,13 @@ fit_MC <- function(data) {
 #` progress_lapply
 progress_lapply <- function(X, FUN, pb, ...) {
   result <- vector("list", length(X))
-  # zz<-file("temp.txt",open="wt")
-  # sink(zz, type="message")
+  zz<-file("temp.txt",open="wt")
+  sink(zz, type="message")
   for (i in seq_along(X)) {
     result[[i]] <- FUN(X[[i]], ...)  # Apply function
     setTxtProgressBar(pb, i)  # Update progress
   }
-  # sink(NULL,type="message")
+  sink(NULL,type="message")
   close(pb)  # Close progress bar when done
   return(result)
 }
