@@ -237,7 +237,8 @@ ITDRMS.hit2 <- function(
     }
   }
   
-  hit_plot <- hit_data %>% ggplot(aes(total.response, -log10(CI))) +
+  hit_plot <- hit_data %>% arrange(hit) %>%
+    ggplot(aes(total.response, -log10(CI))) +
     geom_hline(yintercept = -log10(ifelse(secondline,CIthreshold[2],CIthreshold[1])), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = min(minresponse), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = (-1) * min(minresponse), linetype = "dashed", color = "gray80") +
