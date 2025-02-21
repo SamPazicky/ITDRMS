@@ -189,9 +189,9 @@ ITDRMS.fit = function(
       ITDRMS_sub.fit(data=ratio_data_conds,i=x,outlier.removal=outlier.removal)
     )
     stop_backend(backend)
-    names(conds_fitresults_fits) <- rownames(ratio_data_conds)
   }
   
+  names(conds_fitresults_fits) <- rownames(ratio_data_conds)
   conds_fitresults <- lapply(conds_fitresults_fits, function(x) x$data) %>%
     rbindlist(use.names=TRUE,fill=TRUE)
   fits <- c(fits, lapply(conds_fitresults_fits, function(x) x$fit))
