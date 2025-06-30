@@ -2,21 +2,31 @@
 #'
 #' Identifies hits from fitted mass spec data.
 #' @param data Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
-#' @param weighted Logical: If TRUE (default), the resulting adjusted p values will be weighted by R-squared measure of goodness of fit.
-#' @param R2w Integer: How much should the R-squared weight in? Default is 10.
-#' @param nMAD Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.
-#' @param minresponse Integer: Minimal change in the solubility (e.g. 0.1 for 10 percent change). Default is NA.
-#' @param mindAUC Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1
-#' @param R2line Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
+#' @param CIthreshold Numeric vector: Confidence index cutoff. Default is c(0.05,0.1) for hits and candidates, respectively.
+#' @param minresponse Numeric vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5) for hits and candidates, respectively.
+#' @param R2line Numeric vector: R2  cutoff: Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
+#' Default is c(0.6,0.7) for hits and candidates, respectively.
 #' @param POI Character vector: ID of the protein or proteins to be highlighted on the plot.
-#' @param plot.settings List of graphical settings for plot. Defaults are: 
-#' list(labels=TRUE, label.text.size=2.5, label.force=1.3,
-#' xlims=c(-max(c(abs(hit_data$dAUC)),2), +max(c(2,abs(hit_data$dAUC)))),
-#' ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
-#'  point.sizes=c(1,2), point.colors=c("gray","red","green"),
-#'  axis.title.size=18, axis.text.size=16,
-#'  legend.position="bottom", legend.text.size=8,legend.title=element_blank(),
-#'  POI.color="blue", POI.size=3.5)
+#' @param plot.settings List of graphical settings for plot. The defaults are:
+#' \preformatted{
+#' list(
+#'   labels = TRUE,
+#'   label.text.size = 2.5,
+#'   label.force = 1.3,
+#'   xlims = c(-max(1, abs(hit_data$total.response)) - 1, 
+#'             max(1, abs(hit_data$total.response)) + 1),
+#'   ylims = c(min(-log10(hit_data$CI)), max(-log10(hit_data$CI))),
+#'   point.sizes = c(1, 2),
+#'   point.colors = c("gray", "red3", "green3", "coral2", "darkolivegreen2"),
+#'   axis.title.size = 18,
+#'   axis.text.size = 16,
+#'   legend.position = "bottom",
+#'   legend.text.size = 8,
+#'   legend.title = element_blank(),
+#'   POI.color = "blue",
+#'   POI.size = 3.5
+#' )
+#' }
 #' 
 #' @import tidyverse
 #' @import magrittr
@@ -27,17 +37,14 @@
 #' @return A list with three elements. $data is a data frame with dAUC and p-values for all proteins, $plot is the volcano plot based on the hits and 
 #' $hitlist is a list with two vectors: one for Stabilized and one for Destabilized hits.
 #' @examples 
-#' data_fitted <- ITDRMS.hit(data_fitted, nMAD=0.2)
+#' data_fitted <- ITDRMS.hit(data_fitted)
 #' @export
 
 ITDRMS.hit <- function(
     data=NULL,
-    weighted=TRUE,
-    R2w=10,
-    nMAD=3,
-    mindAUC=0.1,
-    minresponse=NA,
-    R2line=0.6,
+    CIthreshold=c(0.05,0.1),
+    minresponse=c(1,0.5),
+    R2line=c(0.6,0.7),
     POI=c(),
     plot.settings=list()) 
 {
@@ -113,77 +120,83 @@ ITDRMS.hit <- function(
     as.data.frame() %>% slice(2) %>% unlist() %>% unname()
   
   top.conc <- as.character(max(as.numeric(ratio_columns)))
-
+  
+  data$maxresp <- apply(data[,grepl("fit_",names(data))],1,function(x) max(x,na.rm=TRUE))
+  data$minresp <- apply(data[,grepl("fit_",names(data))],1,function(x) min(x,na.rm=TRUE))
+  
+  responses <- data %>%
+    dplyr::select(id,condition,starts_with("fit_")) %>%
+    pivot_longer(cols=starts_with("fit"),names_to="concentration",values_to="fraction_soluble") %>%
+    pivot_wider(id_cols=c(id,concentration),names_from=condition,values_from=fraction_soluble) %>%
+    mutate(across(!c(id,concentration), ~ .x - !!sym(controlcond), .names = "response.{col}")) %>%
+    dplyr::select(id,concentration,starts_with("response")) %>%
+    pivot_longer(cols=starts_with("response"), names_to="condition",values_to="response", names_prefix="response.") %>%
+    filter(condition!=controlcond) %>%
+    na.omit() %>%
+    group_by(id,condition) %>%
+    dplyr::summarise(maxresp=max(response,na.rm=TRUE), minresp=min(response,na.rm=TRUE)) %>%
+    ungroup() %>%
+    mutate(response=ifelse(abs(maxresp)>abs(minresp),maxresp,minresp)) %>%
+    dplyr::select(!ends_with("resp"))
+    
+  
   hit_data <- data %>%
-    mutate(response=!!sym(paste0("fit_",top.conc))) %>% # define response as the scaled value at top concentration
+    dplyr::select(!ends_with("resp")) %>%
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
-    dplyr::select(id,condition,R2orig,response,matches(ratio_columns)) %>%
+    dplyr::select(id,condition,R2orig,matches(ratio_columns)) %>%
     mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>%
     mutate(R2=ifelse(condition==controlcond,0,R2orig)) %>%
     rename_with(~ paste0("ratio_",.x),all_of(ratio_columns)) %>% # organizing the data to longer format
-    pivot_longer(cols=!c(id,condition,R2,response), names_sep="_", names_to=c(".value","Dose")) %>%
+    pivot_longer(cols=!c(id,condition,R2), names_sep="_", names_to=c(".value","Dose")) %>%
     filter(Dose!=0) %>% # removing zero-dose values
-
+    
     mutate(conf.int=ifelse(is.na(conf.int)&(!is.nan(ratio)), ratio/2,conf.int)) %>%
-
+    
     filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN)
-    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,R2,response), names_sep="_") %>% # back to wide
-    mutate(across(starts_with("ratio_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>% # subtract 37 ratio from higher-temp ratios
+    pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,fit,R2), names_sep="_") %>% # back to wide
+    mutate(across(starts_with("fit_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>% # subtract 37 ratio from higher-temp ratios
     mutate(across(starts_with("conf.int_"), ~ .x + !!sym(paste0("conf.int_",controlcond)), .names="sum.{col}")) %>% # sum 37 conf. interval and each higher-temp conf. interval
     dplyr::select(!contains(controlcond)) %>% # remove columns with control temperature condition
     pivot_longer(cols=!c(id,Dose), names_to = c(".value", "condition"), names_sep = "_") %>%# longer format
     na.omit() %>% #to remove NAs from conditions in which the protein was not detected
     mutate(Dose=as.numeric(Dose)) %>%
-    mutate(gap=sum.conf.int/abs(sub.ratio)) %>%
+    mutate(gap=sum.conf.int/abs(sub.fit)) %>%
     mutate(ci=predict(fitted,data.frame(x=.$gap))) %>%
-
-
+    
+    
     group_by(condition) %>%
     mutate(ci.adj=p.adjust(ci,method="BH")) %>%
     ungroup() %>%
-
-    group_by(id,condition,R2,response) %>%
-    summarise(sub.ratio=sum(sub.ratio,na.rm=TRUE), ci.mean=prod(ci.adj,na.rm=TRUE)^(1/n())) %>%
+    
+    group_by(id,condition,R2) %>%
+    summarise(sub.fit=sum(sub.fit,na.rm=TRUE), ci.mean=prod(ci.adj,na.rm=TRUE)^(1/n())) %>%
     ungroup() %>%
-
-    mutate(weighted=weighted) %>%
-    mutate(R2weight=ifelse(weighted,(2-R2)^R2w,1)) %>%
-    mutate(ci.wt = ci.mean*R2weight) %>%
-
+    
+    left_join(responses,by=c("id","condition")) %>%
+    
     group_by(id) %>%
-    summarise(dAUC=sum(sub.ratio)/n(),
-              CI= prod(p=ci.wt,na.rm=TRUE),
-              R2mean=1-prod(1-R2,na.rm=TRUE),
+    summarise(dAUC=sum(sub.fit)/n(),
+              CI=prod(p=ci.mean,na.rm=TRUE),
+              R2prod=1-prod(1-R2,na.rm=TRUE),
               R2max=max(R2,na.rm=TRUE),
-              max.response=max(response,na.rm=TRUE)) %>%
+              sum.response=sum(response,na.rm=TRUE),
+              max.response=ifelse(sum.response>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
     na.omit() %>%
-    ungroup()
+    ungroup() %>%
+    mutate(total.response=sum.response+max.response) %>%
+    mutate(Stabilization=ifelse(sum.response<0,"Destabilized","Stabilized"))
+    
   
-  if(is.na(nMAD) & is.na(mindAUC)) {
-    stop("Please give either nMAD or mindAUC, or both.")
-  } else if(is.na(nMAD)) {
-    limits <- c(mindAUC,-mindAUC)
-  } else if(is.na(mindAUC)) {
-    limits <- nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC)
+  if(!is.na(minresponse[2] & !is.na(CIthreshold[2] & !is.na(R2line[2])))) {
+    hit_data <- hit_data %>%
+      mutate(hit=ifelse(CI<=CIthreshold[2]&R2max>=R2line[2]&abs(total.response)>=minresponse[2],"candidate",""))
+    secondline=TRUE
   } else {
-    limits1 <- c(-mindAUC,mindAUC)
-    limits2 <- sort(nMAD*mad(hit_data$dAUC, na.rm=TRUE) * c(-1,1) + median(hit_data$dAUC))
-    if(limits1[2]>limits2[2]) {
-      limits <- limits1 
-    } else { 
-      limits <- limits2 
-    }
-    cat("Both nMAD and mindAUC given. Using the higher limit of the two.\n")
+    hit_data <- hit_data %>% mutate(hit="")
+    secondline=FALSE
   }
-  limits=sort(limits)
-  
-  if(is.na(minresponse)) {
-    minresponse <- 0
-  }
-
   hit_data <- hit_data %>%
-    mutate(hit=ifelse(CI<=0.05&(dAUC<=limits[1]|dAUC>=limits[2])&R2max>=R2line&abs(max.response-1)>=minresponse,"hit","")) %>%
-    mutate(Stabilization=ifelse(dAUC<0,"Destabilized","Stabilized"))
+    mutate(hit=ifelse(CI<=CIthreshold[1]&R2max>=R2line[1]&abs(total.response)>=minresponse[1],"hit",hit))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
   
@@ -191,10 +204,10 @@ ITDRMS.hit <- function(
   plot.settings.defaults <- list(labels=TRUE,
                                  label.text.size=2.5,
                                  label.force=1.3,
-                                 xlims=c(-max(c(abs(hit_data$dAUC)),2), +max(c(2,abs(hit_data$dAUC)))),
+                                 xlims=c(-max(1,abs(hit_data$total.response))-1, +max(1,abs(hit_data$total.response))+1),
                                  ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
                                  point.sizes=c(1,2),
-                                 point.colors=c("gray","red","green"),
+                                 point.colors=c("gray","red3","green3","coral2","darkolivegreen2"),
                                  axis.title.size=18,
                                  axis.text.size=16,
                                  legend.position="bottom",
@@ -224,17 +237,51 @@ ITDRMS.hit <- function(
     }
   }
   
-  
-  
-  hit_plot <- hit_data %>% ggplot(aes(dAUC,-log(CI,10))) +
-    geom_hline(yintercept=-log10(0.05), linetype="dashed", color="gray80") +
-    geom_vline(xintercept=limits[1], linetype="dashed", color="gray80") + geom_vline(xintercept=limits[2], linetype="dashed", color="gray80") +
-    geom_point(aes(color=interaction(Stabilization,hit, sep=" "),alpha=hit,size=interaction(Stabilization,hit, sep=" "))) +
-    scale_color_manual(values=c(plot.settings$point.colors[1],plot.settings$point.colors[1],plot.settings$point.colors[2],plot.settings$point.colors[3]), name="Proteins", drop=FALSE)  +
-    scale_alpha_manual(values=c(0.3,1), name="Stabilization") +
-    scale_size_manual(values=c(plot.settings$point.sizes[1],plot.settings$point.sizes[1],plot.settings$point.sizes[2],plot.settings$point.sizes[2]), name="Proteins",drop=FALSE) +
+  hit_plot <- hit_data %>% arrange(hit) %>%
+    ggplot(aes(total.response, -log10(CI))) +
+    geom_hline(yintercept = -log10(ifelse(secondline,CIthreshold[2],CIthreshold[1])), linetype = "dashed", color = "gray80") +
+    geom_vline(xintercept = min(minresponse), linetype = "dashed", color = "gray80") +
+    geom_vline(xintercept = (-1) * min(minresponse), linetype = "dashed", color = "gray80") +
+    geom_point(aes(
+      color = interaction(Stabilization, hit, sep = " "),
+      alpha = interaction(Stabilization, hit, sep = " "),
+      size = interaction(Stabilization, hit, sep = " ")
+    )) +
+    scale_color_manual(
+      values = c(
+        `Destabilized ` = plot.settings$point.colors[1],
+        `Stabilized ` = plot.settings$point.colors[1],
+        `Destabilized hit` = plot.settings$point.colors[2],
+        `Stabilized hit` = plot.settings$point.colors[3],
+        `Destabilized candidate` = plot.settings$point.colors[4],
+        `Stabilized candidate` = plot.settings$point.colors[5]
+      ),
+      name = "Proteins", drop = TRUE
+    ) +
+    scale_alpha_manual(
+      values = c(
+        `Destabilized ` = 0.3,
+        `Stabilized ` = 0.3,
+        `Destabilized hit` = 1,
+        `Stabilized hit` = 1,
+        `Destabilized candidate` = 1,
+        `Stabilized candidate` = 1
+      ),
+      name = "Proteins", drop = TRUE
+    ) +
+    scale_size_manual(
+      values = c(
+        `Destabilized ` = plot.settings$point.sizes[1],
+        `Stabilized ` = plot.settings$point.sizes[1],
+        `Destabilized hit` = plot.settings$point.sizes[2],
+        `Stabilized hit` = plot.settings$point.sizes[2],
+        `Destabilized candidate` = plot.settings$point.sizes[1],
+        `Stabilized candidate` = plot.settings$point.sizes[1]
+      ),
+      name = "Proteins", drop = TRUE
+    ) +
     customPlot +
-    scale_x_continuous(limits=plot.settings$xlims, name="dAUC", expand = c(0,0)) +
+    scale_x_continuous(limits=plot.settings$xlims, name="Total response", expand = c(0,0)) +
     scale_y_continuous(name="Confidence index", limits=plot.settings$ylims) +
     guides(alpha="none") + 
     theme(legend.position=plot.settings$legend.position,
@@ -245,7 +292,7 @@ ITDRMS.hit <- function(
   
   if(addPOI) {
     hit_plot <- hit_plot + 
-      geom_point(data=POIdata, aes(dAUC,-log(CI,10)), color=plot.settings$POI.color,size=plot.settings$POI.size)
+      geom_point(data=POIdata, aes(total.response,-log(CI,10)), color=plot.settings$POI.color,size=plot.settings$POI.size)
   }
   
   if(plot.settings$labels) {
@@ -253,13 +300,15 @@ ITDRMS.hit <- function(
                                             fill=alpha(c("white"),0), max.time=2, box.padding=0, label.size=NA)
   }
   
-
+  
   hit_list=list(
-    "Stabilized"=hit_data %>% filter(hit=="hit"&Stabilization=="Stabilized") %>% pull(id),
-    "Destabilized"=hit_data %>% filter(hit=="hit"&Stabilization=="Destabilized") %>% pull(id)
+    "Stabilized_hits"=hit_data %>% filter(hit=="hit"&Stabilization=="Stabilized") %>% pull(id),
+    "Destabilized_hits"=hit_data %>% filter(hit=="hit"&Stabilization=="Destabilized") %>% pull(id),
+    "Stabilized_candidates"=hit_data %>% filter(hit=="candidate"&Stabilization=="Stabilized") %>% pull(id),
+    "Destabilized_candidates"=hit_data %>% filter(hit=="candidate"&Stabilization=="Destabilized") %>% pull(id)
   )
   
-  output <- list("data"=hit_data, "plot"=hit_plot, "hitlist"=hit_list, "MAD"=limits[2]/nMAD)
+  output <- list("data"=hit_data, "plot"=hit_plot, "hitlist"=hit_list)
   return(output)
   
 }

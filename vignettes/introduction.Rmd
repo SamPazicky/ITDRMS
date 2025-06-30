@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ---
 title: "ITDRMS: Analysis of MS-ITDR-CETSA data"
 output: rmarkdown::html_vignette
@@ -19,7 +18,7 @@ knitr::opts_chunk$set(
 
 ## Introduction
 
-ITDRMS package analyzes isothermal dose response (ITDR) cellular thermal shift assay (CETSA (R)) results measured by mass spectrometry (MS). The main goal of this package was to improve the analysis to (1) remove false positive hits that are identified as hits because of one or two outlier points at higher compound doses and (2) to enable identification of drug targets that do not exhibit large thermal stabilization.
+ITDRMS package analyzes isothermal dose response (ITDR) cellular thermal shift assay (CETSA®) results measured by mass spectrometry (MS). The main goal of this package was to improve the analysis to (1) remove false positive hits that are identified as hits because of one or two outlier points at higher compound doses and (2) to enable identification of drug targets that do not exhibit large thermal stabilization.
 
 ```{r setup}
 library(ITDRMS)
@@ -57,7 +56,7 @@ The function returns a list of two data frames.
 The loaded data can be saved as a csv, for example:
 
 ```{r ITDR_loaded_save}
-library(data.frame)
+library(data.table)
 fwrite(ITDR_loaded$data,"raw_data.csv")
 ```
 
@@ -78,7 +77,7 @@ The function has one attribute for loading the data and three logical attributes
 
 The function returns a list of two data frames.
 
-* `data` - a data frame with clean data ready for furthert processing
+* `data` - a data frame with clean data ready for further processing
 * `removed` - a data frame with removed proteins
 
 ## Scaling
@@ -140,11 +139,12 @@ saveRDS(ITDR_fitted$fits,"fits.RDS")
 
 ## Hit identification
 
-ITDRMS identifies hits based on the overlap of confidence intervals between control temperature and thermal each thermal challenge temperature at each dose. The calculated values resemble p-values and are adjusted and weighted by R2 goodness-of-fit. During R2-weighting, the scores will slightly increase if they are above the `R2line` and decrease if they are below the `R2line`. The resulting score is **Confidence index** and is considered significant above 1.3 (corresponding to -log10(0.05)).
+ITDRMS has two different functions to identify hits. Both of them identify hits based on the overlap of confidence intervals between control temperature and thermal each thermal challenge temperature at each dose. The calculated values resemble p-values.
 
+In ITDRMS.hit0, these values are adjusted and weighted by R2 goodness-of-fit. During R2-weighting, the scores will slightly increase if they are above the `R2line` and decrease if they are below the `R2line`. The resulting score is **Confidence index** and is considered significant above -log10(0.05). The x-axis corresponds to differences in the areas under the curve (dAUC) and the nMAD argument sets the dAUC cutoff.
 
-```{r ITDR_hits}
-ITDR_hits <- ITDRMS.hit(ITDR_fitted$data, nMAD=1)
+```{r ITDR_hits0}
+ITDR_hits <- ITDRMS.hit0(ITDR_fitted$data, nMAD=1)
 ```
 
 The function has the following attributes:
@@ -152,10 +152,10 @@ The function has the following attributes:
 * `weighted` - logical: If TRUE (default), the resulting adjusted p values will be weighted by R-squared measure of goodness of fit.
 * `R2w` - integer: How much should the R-squared weight in? Default is 10.
 * `nMAD` - integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.
-* `R2line` - double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
+* `R2line` - double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and CI.
 * `plot.settings` - list of graphical settings for plot. Defaults are: 
 
-```{r ITDR_hits_plotsettings}
+```{r ITDR_hits0_plotsettings}
 list(labels=TRUE, 
      label.text.size=2.5, 
      label.force=1.3, 
@@ -169,9 +169,31 @@ list(labels=TRUE,
 ```
 
 The function returns three elements:
-* `data` - a data frame with dAUC and p-values for all proteins
+* `data` - a data frame with dAUC and confidence indeces for all proteins
 * `plot` - the volcano plot
 * `hitlist` - a list with two vectors: one with stabilized and one with destabilized hits.
+
+The second function, ITDRMS.hit, does not adjust the confidence indeces based on R2 values and uses total response on x-axis. Total response is a sum of max response (maximum response at any of the thermal challenge temperatures) and sum of all responses at each thermal challenge temperature.
+
+```{r ITDR_hits}
+ITDR_hits <- ITDRMS.hit(ITDR_fitted$data)
+```
+
+The function has the following attributes:
+* `data` - data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
+* `CIthreshold` - a numeric vector of length 2: the confidence index cutoff values for hits (first value) and candidates (second value).
+* `minresponse` - a numeric vector of length 2: the total response cutoff for hits (first value) and  candidates (second value).
+* `R2line` - a numeric vector of length 2: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable total response and confidence index. Cutoff for hits (first value) and candidates (second value).
+* `POI` - a character vector: IDs of proteins of interest.
+* `plot.settings` - list of graphical settings for plot.
+
+The available plot settings are same as for ITDRMS.hit0.
+
+The function returns three elements:
+* `data` - a data frame with responses and confidence indeces for all proteins
+* `plot` - the volcano plot
+* `hitlist` - a list with two vectors: one with stabilized and one with destabilized hits.
+
 
 The hit table as well as the plot can be saved:
 ```{r ITDR_hits_saved}
@@ -196,7 +218,7 @@ The function has the following attributes:
 * `calc.POS` - vector: for which temperatures should POS be calculated? Default is NULL, in which case POS will not be calculated. Use with care, ideally only with a small subselection of proteins, such as identified hits. Using this for large datasets will make the process very slow.
 * `POS.source` - data frame with melting curve data to calculate POS from. For *P. falciparum* proteins, the lysate and intact cell melting curve data are included in the package. For different data sets, follow the format of these included data frames.
 * `scale` - logical: Should the curves for each protein be scaled from 0 to 1? Default is FALSE. If TRUE, the amplitude of response will not be comparable across proteins!
-* `print.stats` - logical: Should the R2 and p-value be printed in the plots? Default is FALSE.
+* `print.stats` - logical: Should the R2 and confidence indeces be printed in the plots? Default is FALSE.
 * `color.scheme` - Character string: "rainbow" will plot curves from red to violet from lowest to highest temperature, "distinct" will use distinct colors
 * `fit.length` - an integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
 * `pdf.export` - logical: If TRUE (default), a pdf with all plots will be exported.
@@ -230,236 +252,3 @@ The attributes of the function are:
 * `temperatures` - a vector: for which temperatures should POS be calculated? Default is c(50,55,60)
 
 The function returns a data frame with Stabilization and destabilization plausibilities for every selected temperature. The POS has values between 0 (implausible to get stabilized) to 1 (stabilization completly plausible).
-=======
----
-title: "ITDRMS: Analysis of MS-ITDR-CETSA data"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{introduction}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
-
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  eval = FALSE,
-  collapse = TRUE,
-  comment = "#>"
-)
-```
-
-
-## Introduction
-
-ITDRMS package analyzes isothermal dose response (ITDR) cellular thermal shift assay (CETSA (R)) results measured by mass spectrometry (MS). The main goal of this package was to improve the analysis to (1) remove false positive hits that are identified as hits because of one or two outlier points at higher compound doses and (2) to enable identification of drug targets that do not exhibit large thermal stabilization.
-
-```{r setup}
-library(ITDRMS)
-```
-
-
-## Loading data
-
-The package can load the protein abundance data exported from Proteome Discoverer (>= 2.0) with the function ITDRMS.load. Make sure that the protein abundance data is located in one folder (in the below case 'datafiles', contains the same name pattern (in the below case, 'cipargamin'), and the corresponding melting temperature after an underscore as well as an abbreviation of the organism after an underscore. For example, protein abundances of P. falciparum proteome measured at 50°C for the antimalarial drug cipargamin would be stored in a file with a name `ITDR_cipargamin_50_Pf.txt`.
-
-```{r ITDR_loaded}
-ITDR_loaded <- ITDRMS.load(datafolder=datafiles, pattern=pattern,
-                           orgs=c("Pf"), temperatures=c(37,53,59,65),
-                           top.conc=100,dilution=4)
-```
-
-The function has the following attributes:
-
-* `datafolder` - the name of the directory in which the protein abundance files are stored
-* `pattern` - a portion of the file names that is shared across all files
-* `orgs` - a vector of character strings that label the organism used for search. This is useful in case that the sample contains more proteomes (for example *P. falciparum* grown in red blood cells contains human and parasite proteomes)
-* `temperatures` - a numeric vector with temperatures at which the ITDR experiment was performed
-* `top.conc` - an integer, the top concentration of the drug dilution series.
-* `dilutions` - an integer stating the dilution factor of the drug dilution series.
-* `direction` - a character string. "decreasing" when the loaded data contains highest concentration first, "increasing" otherwise.
-*  `control.tube` - a character string. "last" if the vehicle control is last in the loaded data, otherwise "first".
-* `tubes` an integer. How many tubes (including vehicle control)? Default is 10 assuming TMT10 labeling.
-* `concentrations` - an integer vector with the concentrations of drug used in the assay. Default is NA. If specified, it overwrites dilution, tp.conc, direction, control.tube and tubes.
-
-The function returns a list of two data frames.
-
-* `curves` - an input for further processing using ITDRMS functions.
-* `data` - a data frame with raw data and additional calculated columns.
-
-The loaded data can be saved as a csv, for example:
-
-```{r ITDR_loaded_save}
-library(data.frame)
-fwrite(ITDR_loaded$data,"raw_data.csv")
-```
-
-## Cleaning the data
-
-The following function removes data with missing values, keratins and serum contaminants:
-
-```{r ITDR_clean}
-ITDR_cleaned <- ITDRMS.clean(ITDR_loaded$curves)
-```
-
-The function has one attribute for loading the data and three logical attributes for data cleanup:
-
-* `data` - the data frame with curves from ITDRMS.load. The data frame contains columns `id`, `description`, `condition` and one column for each drug dose. The control condition is appended with "C" (e.g. `37C`). Any data with this format can be parsed into the ITDRMS pipeline.
-* `serum` - Logical: Should the serum proteins be removed?
-* `trypsin` - Logical: Should trypsin be removed?
-* `keratin` - Logical: Should the keratins be removed?
-
-The function returns a list of two data frames.
-
-* `data` - a data frame with clean data ready for furthert processing
-* `removed` - a data frame with removed proteins
-
-## Scaling
-
-The following function scales data.
-
-```{r ITDR_scaled}
-ITDR_scaled <- ITDRMS.scale(ITDR_cleaned$data, normalization.points=2, normalize.selection=c("Organism","Pf"))
-```
-
-The function has the following attributes:
-
-* `data` - the data frame with cleaned up raw data
-* `remove.control.outliers` - logical. If TRUE (default), the program will remove baseline points that significantly deviate from a straight line fit.
-* `remove.hightemp.outliers` - logical: If TRUE (default is FALSE), the program will remove high temperature data points that significantly deviate from a straight line fit. This can reduce false positives but also true positives. Use with caution.
-* `normalization.points` - an integer: How many points should be used for baseline normalization of high temperature data points? Default is 1, but 2 are recommended for 10 doses and even more for more doses, depending on the thermal behavior of the studied system.
-* `normalize.baseline` - Logical: If TRUE (default), all points of baseline data (lowest temperature) will be used to normalize the baseline and the average position of all points will be 1. If FALSE, the number of points given in 'normalization.points' will be used.
-* `normalize.selection` - a vector of length 2: If the data should be normalized only on a subset of data, what column and value should be used? For example, 'normalize.selection=c("Organism","Pf")' will normalized only based on the data that have value 'Pf' in the column 'Organism'. Default is NULL.
-
-The function returns a list of two data frames and normalization plot:
-
-* `data` is a data frame with scaled data
-* `all_data` is a data frame with both input and output data
-* `plot` is a ggplot with scaling boxplots.
-
-The scaling plot can be saved to observed abnormalities in the data and normalization:
-
-```{r ITDR_scaled_save}
-ggsave("scaling.png",ITDR_scaled$plot)
-```
-
-## Fitting
-
-The following function fits data either with linear model in the log space (control temperature or with 
-
-```{r ITDR_fitted}
-ITDR_fitted <- ITDRMS.fit(ITDR_scaled$data)
-```
-
-The function has the following attributes:
-
-* `data` - the data frame with scaled data from ITDRMS.scale
-* `fit.length` - an integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
-* `outlier.removal` - logical: If TRUE (default), outliers will be identified as points that significantly worsen the fit and removed.
-
-The function returns a list of three:
-
-* `data` - a data frame with the fitted data, to be used for curve plotting and hit identification
-* `fits` - a list of fits, to be used for curve plotting
-* `curvy_controls` - a data frame with proteins that have been find to significantly deviate from a linear fit in the control temperature
-
-The table with fitted data and the fits themselves can be saved. Saving the fits can take almost 30 min per data set (depending on dataset size) and is only recommended to do at the end of the analysis.
-
-```{r ITDR_fitted_saved}
-library(data.table)
-fwrite(ITDR_fitted$data,"fits.csv")
-saveRDS(ITDR_fitted$fits,"fits.RDS")
-```
-
-## Hit identification
-
-ITDRMS identifies hits based on the overlap of confidence intervals between control temperature and thermal each thermal challenge temperature at each dose. The calculated values resemble p-values and are adjusted and weighted by R2 goodness-of-fit. During R2-weighting, the scores will slightly increase if they are above the `R2line` and decrease if they are below the `R2line`. The resulting score is **Confidence index** and is considered significant above 1.3 (corresponding to -log10(0.05)).
-
-
-```{r ITDR_hits}
-ITDR_hits <- ITDRMS.hit(ITDR_fitted$data, nMAD=1)
-```
-
-The function has the following attributes:
-* `data` - data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
-* `weighted` - logical: If TRUE (default), the resulting adjusted p values will be weighted by R-squared measure of goodness of fit.
-* `R2w` - integer: How much should the R-squared weight in? Default is 10.
-* `nMAD` - integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.
-* `R2line` - double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.
-* `plot.settings` - list of graphical settings for plot. Defaults are: 
-
-```{r ITDR_hits_plotsettings}
-list(labels=TRUE, 
-     label.text.size=2.5, 
-     label.force=1.3, 
-     xlims=c(-max(c(abs(hit_data$dAUC)),2), +max(c(2,abs(hit_data$dAUC)))),
-     ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))), point.sizes=c(1,2),
-     point.colors=c("gray","red","green"), 
-     axis.title.size=18, axis.text.size=16, 
-     legend.position="bottom", 
-     legend.text.size=8,
-     legend.title=element_blank())
-```
-
-The function returns three elements:
-* `data` - a data frame with dAUC and p-values for all proteins
-* `plot` - the volcano plot
-* `hitlist` - a list with two vectors: one with stabilized and one with destabilized hits.
-
-The hit table as well as the plot can be saved:
-```{r ITDR_hits_saved}
-library(data.table)
-fwrite(ITDR_hits$data,"fits.csv")
-ggsave("volcano_plot.png", ITDR_hits$plot)
-```
-
-## Curve plotting
-
-To plot the curve, use the following functions:
-
-```{r ITDR_plot_all}
-ITDRdata_hitplots <- ITDRMS.plot(ITDR_fitted$data, ITDR_fitted$fits, color.scheme="rainbow",pdf.export=TRUE,pdf.name="ITDRcurves_hits")
-```
-
-The function has the following attributes:
-
-* `data` - a data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
-* `fits` - a list containing all fit objects, ideally $fits element from ITDRMS.fit output.
-* `hits` - a data frame with hits coming from ITDRMS.hit. Only required when print.stats=TRUE
-* `calc.POS` - vector: for which temperatures should POS be calculated? Default is NULL, in which case POS will not be calculated. Use with care, ideally only with a small subselection of proteins, such as identified hits. Using this for large datasets will make the process very slow.
-* `POS.source` - data frame with melting curve data to calculate POS from. For *P. falciparum* proteins, the lysate and intact cell melting curve data are included in the package. For different data sets, follow the format of these included data frames.
-* `scale` - logical: Should the curves for each protein be scaled from 0 to 1? Default is FALSE. If TRUE, the amplitude of response will not be comparable across proteins!
-* `print.stats` - logical: Should the R2 and p-value be printed in the plots? Default is FALSE.
-* `color.scheme` - Character string: "rainbow" will plot curves from red to violet from lowest to highest temperature, "distinct" will use distinct colors
-* `fit.length` - an integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
-* `pdf.export` - logical: If TRUE (default), a pdf with all plots will be exported.
-* `pdf.folder` - a character string: Name of the directory for pdf export. Default is the working directory.
-* `pdf.name` -  a character string: Name of tthe exported pdf file. Default is 'ITDR_curves'
-
-The function returns a list of all plots.
-
-## Plausibility of stabilization
-
-To assess whether the stabilization with an increasing drug concentration is plausible at a given temperature, the plotting function is connected with ITDRMS.POS (**P**lausibility **o**f **s**tabilization). The subplots indicate whether the particular protein has "room" to be stabilized or destabilized from red (no room for de/stabilization) to green (a lot of room for de/stabilization).
-
-The function can be used when plotting a selection of curves, for example stabilized hits:
-
-```{r ITDR_plot_stab}
-ITDRdata_hitplots <- ITDRMS.plot(ITDR_fitted$data%>%filter(id %in% ITDR_hits$hitlist$Stabilized), ITDR_fitted$fits, 
-                                 color.scheme="rainbow",pdf.export=TRUE,pdf.name="ITDRcurves_hits",
-                                 calc.POS=c(53,59,65), POS.source=Pf_meltcurve_lysate)
-```
-
-Alternatively, it can also be used separately:
-
-```{r ITDR_POS}
-ITDRMS.POS(protein="PF3D7_0417200",source.data=Pf_meltcurve_lysate,temperatures=c(53,59,65))
-```
-
-The attributes of the function are:
-
-* `protein` - a character string: Identifier of a protein that can be found in 'id' column of source.data.
-* `source.data` - a data frame with measured melting curve, with one column for protein 'id' and other columns for scaled(zero to one) values
-* `temperatures` - a vector: for which temperatures should POS be calculated? Default is c(50,55,60)
-
-The function returns a data frame with Stabilization and destabilization plausibilities for every selected temperature. The POS has values between 0 (implausible to get stabilized) to 1 (stabilization completly plausible).
->>>>>>> 2448b81 (Update)

@@ -208,3 +208,5 @@ ITDRMS.fit = function(
   output <- list("data"=all_data,"fits"=fits, "curvy_controls"=curvy_controls)
   return(output)
 }
+
+

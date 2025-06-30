@@ -6,12 +6,9 @@
 \usage{
 ITDRMS.hit(
   data = NULL,
-  weighted = TRUE,
-  R2w = 10,
-  nMAD = 3,
-  mindAUC = 0.1,
-  minresponse = NA,
-  R2line = 0.6,
+  CIthreshold = c(0.05, 0.1),
+  minresponse = c(1, 0.5),
+  R2line = c(0.6, 0.7),
   POI = c(),
   plot.settings = list()
 )
@@ -19,28 +16,35 @@ ITDRMS.hit(
 \arguments{
 \item{data}{Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.}
 
-\item{weighted}{Logical: If TRUE (default), the resulting adjusted p values will be weighted by R-squared measure of goodness of fit.}
+\item{CIthreshold}{Numeric vector: Confidence index cutoff. Default is c(0.05,0.1) for hits and candidates, respectively.}
 
-\item{R2w}{Integer: How much should the R-squared weight in? Default is 10.}
+\item{minresponse}{Numeric vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5) for hits and candidates, respectively.}
 
-\item{nMAD}{Integer: How much higher or lower does the area under dose-response curve (dAUC) be than mean absolute deviation (MAD)? Default is 3.}
-
-\item{mindAUC}{Integer: Minimum absolute dAUC value to be considered a hit. If both nMAD and mindAUC are given, the larger of the two will be used as the cutoff. Default is 0.1}
-
-\item{minresponse}{Integer: Minimal change in the solubility (e.g. 0.1 for 10 percent change). Default is NA.}
-
-\item{R2line}{Double: Soft R2 cut-off. Proteins with R-squared value below this value will not be considered as hits despite favourable dAUC and p-value.}
+\item{R2line}{Numeric vector: R2  cutoff: Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
+Default is c(0.6,0.7) for hits and candidates, respectively.}
 
 \item{POI}{Character vector: ID of the protein or proteins to be highlighted on the plot.}
 
-\item{plot.settings}{List of graphical settings for plot. Defaults are: 
-list(labels=TRUE, label.text.size=2.5, label.force=1.3,
-xlims=c(-max(c(abs(hit_data$dAUC)),2), +max(c(2,abs(hit_data$dAUC)))),
-ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
- point.sizes=c(1,2), point.colors=c("gray","red","green"),
- axis.title.size=18, axis.text.size=16,
- legend.position="bottom", legend.text.size=8,legend.title=element_blank(),
- POI.color="blue", POI.size=3.5)}
+\item{plot.settings}{List of graphical settings for plot. The defaults are:
+\preformatted{
+list(
+  labels = TRUE,
+  label.text.size = 2.5,
+  label.force = 1.3,
+  xlims = c(-max(1, abs(hit_data$total.response)) - 1, 
+            max(1, abs(hit_data$total.response)) + 1),
+  ylims = c(min(-log10(hit_data$CI)), max(-log10(hit_data$CI))),
+  point.sizes = c(1, 2),
+  point.colors = c("gray", "red3", "green3", "coral2", "darkolivegreen2"),
+  axis.title.size = 18,
+  axis.text.size = 16,
+  legend.position = "bottom",
+  legend.text.size = 8,
+  legend.title = element_blank(),
+  POI.color = "blue",
+  POI.size = 3.5
+)
+}}
 }
 \value{
 A list with three elements. $data is a data frame with dAUC and p-values for all proteins, $plot is the volcano plot based on the hits and 
@@ -50,5 +54,5 @@ $hitlist is a list with two vectors: one for Stabilized and one for Destabilized
 Identifies hits from fitted mass spec data.
 }
 \examples{
-data_fitted <- ITDRMS.hit(data_fitted, nMAD=0.2)
+data_fitted <- ITDRMS.hit(data_fitted)
 }

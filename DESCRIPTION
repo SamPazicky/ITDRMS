@@ -17,5 +17,7 @@ Imports:
   ggrepel
 Suggests:
   parallel,
-  parabar
+  parabar,
+  knitr,
+  rmarkdown
 VignetteBuilder: knitr
