@@ -73,6 +73,7 @@ ITDRMS.load=function(datafolder="datafiles",
       
       # find columns with abundances
       ab_cols <- newfile %>%
+        dplyr::select(contains("Abundance")) %>% 
         dplyr::select(!contains("CV")) %>%
         dplyr::select(!contains("Ratio")) %>% 
         names()
