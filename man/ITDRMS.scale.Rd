@@ -7,7 +7,7 @@
 ITDRMS.scale(
   data = NULL,
   remove.control.outliers = TRUE,
-  remove.hightemp.outliers = FALSE,
+  remove.hightemp.outliers = TRUE,
   normalization.points = 1,
   normalize.baseline = TRUE,
   normalize.selection = NULL

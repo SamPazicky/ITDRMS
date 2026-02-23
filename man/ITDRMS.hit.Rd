@@ -6,7 +6,7 @@
 \usage{
 ITDRMS.hit(
   data = NULL,
-  CIthreshold = c(0.05, 0.1),
+  CIthreshold = c(1, 0.75),
   minresponse = c(1, 0.5),
   R2line = c(0.6, 0.7),
   POI = c(),

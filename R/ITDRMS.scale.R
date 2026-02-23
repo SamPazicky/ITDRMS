@@ -21,7 +21,7 @@
 ITDRMS.scale = function(
     data=NULL,
     remove.control.outliers=TRUE,
-    remove.hightemp.outliers=FALSE,
+    remove.hightemp.outliers=TRUE,
     normalization.points=1, # how many points to use
     normalize.baseline=TRUE,
     normalize.selection=NULL # can be c("column","value") to normalize only based on a selection from column
@@ -43,7 +43,10 @@ ITDRMS.scale = function(
   }
   
   # calculate average dilution factor
-  dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0]%>% sort(decreasing=TRUE)
+  suppressWarnings(
+    dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0]%>% sort(decreasing=TRUE)
+  )
+  
   dil.factor <- mean(dils[-length(dils)]/dils[-1]) %>% round(2)
   
   controlcond <- grep("^[[:digit:]]*C$", unique(data$condition), value=TRUE)
@@ -113,10 +116,9 @@ ITDRMS.scale = function(
   # normalize blank treatment to 1
   ratio_data_abadj <- ratio_data_abadj %>% dplyr::select(gtools::mixedsort(ratio_columns,decreasing=FALSE))
   norm1columns <- gtools::mixedsort(ratio_columns)[1:normalization.points]
-  for(i in 1:nrow(ratio_data_abadj)) {
-    ratio_data_abadj[i,] <- ratio_data_abadj[i,]/mean(unlist(ratio_data_abadj[i,norm1columns]))
-    
-  }
+  row_means <- rowMeans(ratio_data_abadj[, norm1columns, drop=FALSE])
+  ratio_data_abadj <- ratio_data_abadj / row_means
+
   
   # calculate normalization factors
   norm_factors <- ratio_data_abadj %>%
@@ -141,62 +143,37 @@ ITDRMS.scale = function(
   if (remove.control.outliers) {
     cat("Removing control outliers...\n")
     controldata <- ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),]
-    after.out.intercepts <- rep(NA,nrow(controldata)) %>% setNames(rownames(controldata) %>% str_split_i(";",1))
-    
-    x=names(controldata) %>% as.numeric()
-    x_adj = x
-    x_adj[1]=x_adj[2]/dil.factor
+
+    x=names(controldata)
     
     pb <- txtProgressBar(min=0, max=nrow(controldata), style=3, initial="")
     for (i in 1:nrow(controldata)) {
       protein <- rownames(controldata)[i] %>% str_split_i(";",1)
-      y=controldata %>% slice(i) %>% unlist() %>% unname() 
-      trialfit <- try(lm(formula = y ~ 1, na.action=na.omit), silent=TRUE)
-      excl_fit_Rs <- list()
-      for (j in 1:length(x)) {
-        y_dif <- y[-j]
-        x_dif <- x_adj[-j]
-        # y_dif <- y_dif + (1-mean(y_dif))
-        exfit <- try(lm(formula = y_dif ~ 1, na.action=na.omit), silent=TRUE)
-        if(class(exfit)!="try-error") {
-          excl_fit_Rs[[j]] <- abs(exfit$coefficients[1]) #summary(exfit)$sigma
+      y=controldata %>% slice(i) %>% unlist() %>% unname()
+      #new
+      outliers <- remove_outliers(x,y,if.max = "outstanding", z.cutoff = 0.3)
+      controldata[i,outliers] <- NA
+      
+      if(!is.null(outliers)) {
+        if(length(setdiff(1:normalization.points,outliers))!=0) {
+          controldata[i,] <- controldata[i,] + 1 - mean(na.omit(unlist(controldata[i, ]))[1:normalization.points])
         }
       }
-      
-      outlier.table <- excl_fit_Rs %>% setNames(x) %>% stack() %>% setNames(c("R","x")) %>% 
-        add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
-        mutate(z=scale(R)) 
-      outlier <- outlier.table %>%
-        filter(abs(z)>=2) %>%
-        slice_max(abs(z)) %>% 
-        pull(x) %>% .[1] %>% as.character()
-      
-      if(length(outlier)>0 & !is.na(outlier)) {
-        controldata[i,outlier] <- NA
-        after.out.intercepts[protein] <- outlier.table %>% filter(x==outlier) %>% pull(R)
-      } else {
-        after.out.intercepts[protein] <- outlier.table %>% filter(is.na(x)) %>% pull(R)
-      }
-      
       
       setTxtProgressBar(pb, i)
     }
     close(pb)
     
-    after.out.intercepts <- stack(after.out.intercepts) %>% setNames(c("correction","id"))
     # normalize baseline
-    if(normalize.baseline) {
-      cat("Normalizing baseline to 1...\n")
-      controldata <- controldata %>%
-        rownames_to_column("id.condition") %>%
-        separate_wider_delim(cols=id.condition,delim=";",names=c("id","condition")) %>%
-        left_join(after.out.intercepts,by="id") %>%
-        mutate(across(!c(id,condition), ~ .x + 1 - correction)) %>%
-        mutate(rowname=paste0(id,";",condition)) %>%
-        column_to_rownames("rowname") %>%
-        dplyr::select(!c(id,condition,correction))
-    }
     
+    if(normalize.baseline) {
+      cat("Normalizing baseline.\n")
+      # compute row means once
+      row_means <- rowMeans(controldata, na.rm = TRUE)
+      # subtract row mean and add 1
+      controldata <- as.data.frame(sweep(controldata, 1, row_means, "-") + 1)
+    }
+ 
     ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),] <- controldata
   }
   
@@ -211,62 +188,22 @@ ITDRMS.scale = function(
     cat("Removing sigmoid fit outliers...\n")
     hightempdata <- ratio_data_norm[grep(controlcond,rownames(ratio_data_norm), invert=TRUE),]
     
-    x=names(hightempdata) %>% as.numeric()
-    x_adj = x
-    x_adj[1]=x_adj[2]/dil.factor
-    
+    x=names(hightempdata)
+   
     pb <- txtProgressBar(min=0, max=nrow(hightempdata), style=3, initial="")
+
     for (i in 1:nrow(hightempdata)) {
+      
+      # data for the particular protein
       y=hightempdata %>% slice(i) %>% unlist() %>% unname() 
-      trialfit <- try(lm(formula = y ~ 1, na.action=na.omit), silent=TRUE)
-      excl_fit_Rs <- list()
-      for (j in 1:length(x)) {
-        y_dif <- y[-j]
-        x_dif <- x_adj[-j]
-        # y_dif <- y_dif + (1-mean(y_dif))
-        exfit <- try(lm(formula = y_dif ~ 1, na.action=na.omit), silent=TRUE) 
-        excl_fit_Rs[[j]] <- abs(exfit$coefficients[1])
-      }
+      outliers <- remove_outliers(x,y,max.out=3,if.max="outstanding")
+      hightempdata[i,outliers] <- NA
       
-      outlier.table <- excl_fit_Rs %>% setNames(x) %>% stack() %>% setNames(c("R","x")) %>% 
-        add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
-        mutate(z=scale(R)) %>%
-        filter(abs(z)>=2) %>%
-        filter(abs(R-1)<=0.15) %>%
-        slice_max(abs(z))
-      outlier <- outlier.table %>% pull(x) %>% as.character()
-      
-      if(length(outlier)>0 ) {
-        if(!is.na(outlier[1])) {
-          first.z=abs(c(unlist(outlier.table[1,"z"])))
-          # another round. If there is another outlier point, then do not remove any of them. If there is none, remove the first one.
-          yred <- hightempdata[i,] %>% dplyr::select(!all_of(outlier))
-          xred <- names(yred) %>% as.numeric
-          xred[1]=xred[2]/dil.factor
-          yred <- unname(unlist(yred))
-          excl_fit_Rs <- list()
-          trialfit <- try(lm(formula = yred ~ 1, na.action=na.omit), silent=TRUE)
-          for (jj in 1:length(xred)) {
-            y_dif <- yred[-jj]
-            x_dif <- xred[-jj]
-            # y_dif <- y_dif + (1-mean(y_dif))
-            exfit <- try(lm(formula = y_dif ~ 1, na.action=na.omit), silent=TRUE) 
-            excl_fit_Rs[[jj]] <- abs(exfit$coefficients[1]) #summary(exfit)$r.squared
-          }
-          second.z <- excl_fit_Rs %>% setNames(xred) %>% stack() %>% setNames(c("R","x")) %>% 
-            add_row(data.frame(R=abs(trialfit$coefficients[1]),x=NA)) %>%
-            mutate(z=scale(R)) %>%
-            slice_max(abs(z)) %>%
-            pull(z) %>% unlist() %>% c() %>% abs()
-          
-          if(second.z<=(first.z-0.1)) {
-            hightempdata[i,outlier] <- NA
-          }
+      # rescale if the first point is the outlier
+      if(!is.null(outliers) & length(outliers)!=length(x)) {
+        if(length(setdiff(1:normalization.points,outliers))!=0) {
+          hightempdata[i,] <- hightempdata[i,] + 1 - mean(na.omit(unlist(hightempdata[i, ]))[1:normalization.points])
         }
-      } 
-      
-      if(x[1] %in% outlier) {
-        hightempdata[i,as.character(x)] <- hightempdata[i,as.character(x)]+1-hightempdata[i,as.character(x[2])]
       }
       
       setTxtProgressBar(pb, i)

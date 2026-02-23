@@ -19,7 +19,7 @@ get_legend<-function(myggplot) { # to extract legend from a single ggplot
 #' fit_sigmoid
 
 
-fit_sigmoid <- function(data, e_guess_lim=0.2) {
+fit_sigmoid <- function(data, tryfixedslope=TRUE) {
   
   require(drc)
   
@@ -34,17 +34,35 @@ fit_sigmoid <- function(data, e_guess_lim=0.2) {
                lower=c(1,-30,data$x[2]),
                upper=c(20,30,data$x[length(data$x)-1])
       ),
-      
+  
       error=function(cond){
         return(NA)
       },
-      finally={  
+      finally={
       }
-      
     )
   
-  if(class(my.fit.dat)=="try-error") {
-    my.fit.dat=NA
+  if(class(my.fit.dat)=="logical") {
+    if(tryfixedslope) {
+      my.fit.dat <-
+        tryCatch(
+          drc::drm(formula = y ~ x, data=data, fct = LL.4(fixed=c(NA,NA,1,1)), na.action=na.omit,
+                   # start=c(b=b_guess,c=c_guess, e=e_guess),
+                   lower=c(1,-30),
+                   upper=c(20,30)
+          ),
+          
+          error=function(cond){
+            return(NA)
+          },
+          finally={  
+          }
+          
+        )
+    }
+    if(class(my.fit.dat)=="try-error") {
+      my.fit.dat=NA
+    }
   }
   return(my.fit.dat)
 }
@@ -145,4 +163,113 @@ progress_lapply <- function(X, FUN, pb, ...) {
   sink(NULL,type="message")
   close(pb)  # Close progress bar when done
   return(result)
+}
+
+
+#` remove_outliers
+remove_outliers <- function(
+    x=c(),
+    y=c(),
+    noise=4,
+    z.cutoff=0.4,
+    max.out=8,
+    if.max="remove" # 'remove' to remove all, 'outstanding' to remove outliers standing out, 'none' to keep
+) {
+  
+  if(length(x)!=length(y)) {
+    stop("Length x and y must be equal.")
+  }
+  if(max.out>length(y)-2) {
+    max.out<-length(y)-2
+    cat("max.out too high for the data size. Adjusted to ", max.out,".\n")
+  }
+  
+  
+  removing <- TRUE
+  j=1
+  outliers <- out.positions <- zs <- c()
+  out.positions[1] <- 100 # arbitrarily high number to not remove any outlier in the first round of while loop.
+  while(removing & j<=(max.out)) {
+    p2pdiffs <-  (c(0,diff(y[-out.positions]),0) %>% diff())*c(2,rep(1,length(y[-out.positions])-2),2) %>% scale() %>% .[,1]*c(1,rep(1,length(y[-out.positions])-2),0.5)
+    # if median is too high it means it is way too noisy to perform any removal:
+    if(median(abs(p2pdiffs))/max(abs(p2pdiffs))>=noise) {
+      removing <- FALSE
+      next
+    }
+    p2ptable <- data.frame(x[-out.positions],p2pdiffs) %>% setNames(c("x","zdiff"))
+    outlier <- p2ptable %>% filter(abs(zdiff)>=z.cutoff) %>% slice_max(abs(zdiff)) %>% pull(x) %>% as.character()
+    if(length(outlier)==0) {
+      removing <- FALSE
+      next
+    }
+    outliers[j] <- outlier
+    
+    zs[j] <- p2ptable %>% filter(abs(zdiff)>=z.cutoff) %>% slice_max(abs(zdiff)) %>% pull(zdiff) %>% abs()
+    out.positions[j] <- which(x==as.numeric(outliers[j]))
+    j=j+1
+  }
+  
+  
+  if(length(outliers)==0) {
+    outliers <- NULL
+    # in case it just peeled of outliers from top to bottom conc
+  } else if(length(outliers)>1 & outliers[1]==x[length(x)] & sum(diff(out.positions))==(-1)*length(out.positions)+1) {
+    outliers <- NULL
+  } else if(j>max.out) {
+    zs <- sort(zs,TRUE)
+    
+    
+    if(if.max=="remove") {
+      outliers <- x
+    } else if(if.max=="outstanding") {
+      outliers <- x[out.positions[which(scale(zs,0)[,1]>=0.75)]]
+    } else {
+      outliers <- NULL
+    }
+  }
+  
+  return(outliers)
+  
+}
+
+#` predict_clean
+predict_clean <- function(clean_fit, x, dil.factor = exp(1)) {
+  
+  # =========================
+  # LL.4 MODEL
+  # =========================
+  if (clean_fit$model_type == "LL4") {
+    
+    # Default all parameters to 1
+    pars <- c(b = 1, c = 1, d = 1, e = 1)
+    
+    coefs <- clean_fit$coef
+    names(coefs) <- sub(":.*", "", names(coefs))
+    
+    pars[names(coefs)] <- coefs
+    
+    return(
+      pars["c"] + (pars["d"] - pars["c"]) /
+        (1 + exp(pars["b"] * (log(x) - log(pars["e"]))))
+    )
+  }
+  
+  # =========================
+  # LINEAR MODEL
+  # =========================
+  if (clean_fit$model_type == "lm") {
+    
+    coefs <- clean_fit$coef
+    
+    # Case 1: intercept-only model (y ~ 1)
+    if (length(coefs) == 1) {
+      return(rep(coefs[1], length(x)))
+    }
+    
+    # Case 2: y ~ log(x, dil.factor)
+    intercept <- coefs[1]
+    slope <- coefs[2]
+    
+    return(intercept + slope * log(x, base = dil.factor))
+  }
 }

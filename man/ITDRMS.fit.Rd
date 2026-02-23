@@ -7,8 +7,9 @@
 ITDRMS.fit(
   data = NULL,
   ncores = 1,
+  ram = 8,
   fit.length = 100,
-  control.slope = FALSE,
+  control.slope = c("horizontal", "linear", "sigmoid"),
   outlier.removal = TRUE
 )
 }
@@ -16,6 +17,8 @@ ITDRMS.fit(
 \item{data}{Data frame scaled mass spec data}
 
 \item{ncores}{Integer: How many cores to use for fitting. Default is 1.}
+
+\item{ram}{Integer: Size allowed for parallel computing in GB.}
 
 \item{fit.length}{Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.}
 

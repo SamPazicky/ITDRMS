@@ -30,9 +30,15 @@ ITDRMS_sub.fit = function(
   y=fit_data$y[-prev_rem]
   cur_ratio_columns = ratio_columns[-prev_rem]
   cur_fit_data<-data.frame("x"=x,"y"=y)
-  # try fitting LL.4 - for non-control conditions
-  if(!str_detect(condition,"[[:digit:]]C$")|length(prev_rem>1)) {
-    sigmoid <- try(fit_sigmoid(cur_fit_data),silent=TRUE)
+  # try fitting LL.4 
+  # if(!str_detect(condition,"[[:digit:]]C$")|length(prev_rem>1)) {
+  if(!length(prev_rem)>1) {
+    if(str_detect(condition,"[[:digit:]]C$")) {
+      tryfixedslope=TRUE
+    } else {
+      tryfixedslope=TRUE
+    }
+    sigmoid <- try(fit_sigmoid(cur_fit_data,tryfixedslope=tryfixedslope),silent=TRUE)
     if(!class(sigmoid)=="list"&!class(sigmoid)=="try-error"&any(!is.na(sigmoid))) {
       R2sigmoid <- 1 - sum((residuals(sigmoid)^2))/sum((y-mean(y))^2)
       R2sigmoid_orig <- R2sigmoid
@@ -80,7 +86,6 @@ ITDRMS_sub.fit = function(
     cur_ratio_columns <- cur_ratio_columns[-outlier]
   }
   
-
   if(class(sigmoid)!="list"&!is.na(class(sigmoid))) {
     suppressWarnings(R2 <- 1 - sum((residuals(sigmoid)^2))/sum((cur_fit_data$y-mean(cur_fit_data$y))^2))
     

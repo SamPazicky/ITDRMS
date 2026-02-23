@@ -42,7 +42,7 @@
 
 ITDRMS.hit <- function(
     data=NULL,
-    CIthreshold=c(0.05,0.1),
+    CIthreshold=c(1,0.75),
     minresponse=c(1,0.5),
     R2line=c(0.6,0.7),
     POI=c(),
@@ -63,50 +63,8 @@ ITDRMS.hit <- function(
   } else {
     data=as.data.frame(data)
   }
-  
-  fit_01sigmoid <- function(data) {
-    if(length(data$x)!=length(data$y)) {
-      stop("Vectors x and y do not have the same length.")
-    }
-    # guess the initial value of inflection point for fitting. 
-    # The guess is made when difference between subsequent scaled abundances is >0.25
+
     
-    
-    scaledata=data
-    scaledata$x<-range.scale(scaledata$x)
-    for (point in 1:(length(scaledata$y)-1)) {
-      y_dif <- abs(scaledata$y[point+1] - scaledata$y[point])
-      if(abs(y_dif)>0.25) {
-        e_guess <- (data$x[point+1]+data$x[point])/2
-        e_vec <- point+1
-        break
-      } else {
-        y_dif_saved <- y_dif
-        e_guess <- median(data$x)
-        e_vec <- 5
-      }
-    }
-    
-    #guess slope
-    b_guess <- ((data$y[e_vec-1]-data$y[e_vec])*10)^3/7
-    b_guess=b_guess*(-1)
-    
-    # form=as.formula(paste0(y,"~(c+a*",x,"+((d-c)/(1+exp(b*(log(",x,")-log(e))))))"))
-    assign("my.fit.dat",
-           try(minpack.lm::nlsLM(formula=y~(((1)/(1+exp(b*(log(x)-log(e)))))),
-                                 data=data,
-                                 start=list(b=b_guess, e=e_guess),
-                                 lower=c(-200,0.0005),
-                                 upper=c(200,10),
-                                 control=list(maxiter=100)),
-               silent=TRUE)
-    )
-    
-    return(my.fit.dat)
-  }
-  
-  fitted <- fit_01sigmoid(data.frame(x=c(1,1.5,2),y=c(0.05,0.5,0.95)))  # equation for calculating p-value
-  
   #log4 axis transformation
   
   require(scales) # trans_new() is in the scales library
@@ -125,34 +83,37 @@ ITDRMS.hit <- function(
   data$minresp <- apply(data[,grepl("fit_",names(data))],1,function(x) min(x,na.rm=TRUE))
   
   responses <- data %>%
-    dplyr::select(id,condition,starts_with("fit_")) %>%
-    pivot_longer(cols=starts_with("fit"),names_to="concentration",values_to="fraction_soluble") %>%
-    pivot_wider(id_cols=c(id,concentration),names_from=condition,values_from=fraction_soluble) %>%
-    mutate(across(!c(id,concentration), ~ .x - !!sym(controlcond), .names = "response.{col}")) %>%
-    dplyr::select(id,concentration,starts_with("response")) %>%
-    pivot_longer(cols=starts_with("response"), names_to="condition",values_to="response", names_prefix="response.") %>%
-    filter(condition!=controlcond) %>%
-    na.omit() %>%
-    group_by(id,condition) %>%
-    dplyr::summarise(maxresp=max(response,na.rm=TRUE), minresp=min(response,na.rm=TRUE)) %>%
+    dplyr::select(id,condition,starts_with("fit_")) %>% # extracts fit values
+    pivot_longer(cols=starts_with("fit"),names_to="concentration",values_to="fraction_soluble") %>% # everything into long format
+    pivot_wider(id_cols=c(id,concentration),names_from=condition,values_from=fraction_soluble) %>% # one column per each temperature
+    mutate(across(!c(id,concentration), ~ .x - !!sym(controlcond), .names = "response.{col}")) %>% # subtract control condition, call it "response"
+    dplyr::select(id,concentration,starts_with("response")) %>%  # keep only id, conc and response columns
+    pivot_longer(cols=starts_with("response"), names_to="condition",values_to="response", names_prefix="response.") %>% # back to long format
+    filter(condition!=controlcond) %>% # remove control condition
+    na.omit() %>% # remove NA values
+    group_by(id,condition) %>% # for each id and temperature, pick max and min response
+    dplyr::summarise(maxresp=max(response,na.rm=TRUE), minresp=min(response,na.rm=TRUE),.groups="drop") %>%
     ungroup() %>%
-    mutate(response=ifelse(abs(maxresp)>abs(minresp),maxresp,minresp)) %>%
+    mutate(response=ifelse(abs(maxresp)>abs(minresp),maxresp,minresp)) %>% # keep only max or min response, depends on which is larger
     dplyr::select(!ends_with("resp"))
     
   
   hit_data <- data %>%
-    dplyr::select(!ends_with("resp")) %>%
+    dplyr::select(!ends_with("resp")) %>% # remove columns maxresp and minresp
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
-    dplyr::select(id,condition,R2orig,matches(ratio_columns)) %>%
-    mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>%
-    mutate(R2=ifelse(condition==controlcond,0,R2orig)) %>%
+    dplyr::select(id,condition,R2orig,matches(ratio_columns)) %>% # columns: id, temperatures, R2 and ratio columns, conf.ints and fits
+    # filter(!(condition == controlcond & R2orig < 0.5)) %>% # remove low-quality control conditions
+    mutate(R2orig=ifelse(is.na(R2orig), 0, R2orig)) %>% # adjust R2 to 0 if NA
+    mutate(R2=ifelse(condition==controlcond,0,R2orig)) %>% # adjust R2 in control condition to 0
     rename_with(~ paste0("ratio_",.x),all_of(ratio_columns)) %>% # organizing the data to longer format
     pivot_longer(cols=!c(id,condition,R2), names_sep="_", names_to=c(".value","Dose")) %>%
-    filter(Dose!=0) %>% # removing zero-dose values
-    
-    mutate(conf.int=ifelse(is.na(conf.int)&(!is.nan(ratio)), ratio/2,conf.int)) %>%
-    
-    filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN)
+    filter(Dose!=0) %>% # removing zero-dose values. They were only used for alignmenet
+    # mutate(conf.int=ifelse(is.nan(conf.int), 0,conf.int)) %>% # I am not convinced that replacing with 0 is best. removing is better. Anyways it is mutliplied.
+    # filter(!is.na(conf.int)) %>%
+    filter(!is.na(conf.int)&!is.nan(conf.int)&!conf.int==0) %>%
+    # mutate(conf.int=ifelse(is.na(conf.int)&(!is.nan(ratio)), ratio/2,conf.int)) %>%
+     
+    # filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN)
     pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,fit,R2), names_sep="_") %>% # back to wide
     mutate(across(starts_with("fit_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>% # subtract 37 ratio from higher-temp ratios
     mutate(across(starts_with("conf.int_"), ~ .x + !!sym(paste0("conf.int_",controlcond)), .names="sum.{col}")) %>% # sum 37 conf. interval and each higher-temp conf. interval
@@ -160,43 +121,43 @@ ITDRMS.hit <- function(
     pivot_longer(cols=!c(id,Dose), names_to = c(".value", "condition"), names_sep = "_") %>%# longer format
     na.omit() %>% #to remove NAs from conditions in which the protein was not detected
     mutate(Dose=as.numeric(Dose)) %>%
-    mutate(gap=sum.conf.int/abs(sub.fit)) %>%
-    mutate(ci=predict(fitted,data.frame(x=.$gap))) %>%
+    mutate(pointgap=abs(sub.fit)-sum.conf.int/2) %>%
+    mutate(adsign=sign(sub.fit)) %>%
+    mutate(pgsign=sign(pointgap)) %>%
+    # filter(pgsign==pgsign2) %>%
+    # mutate(pointgap=ifelse(pgsign>0,1+pointgap,1-pointgap)) %>%
+    left_join(responses,by=c("id","condition"),relationship = "many-to-one") %>%
     
-    
-    group_by(condition) %>%
-    mutate(ci.adj=p.adjust(ci,method="BH")) %>%
-    ungroup() %>%
-    
-    group_by(id,condition,R2) %>%
-    summarise(sub.fit=sum(sub.fit,na.rm=TRUE), ci.mean=prod(ci.adj,na.rm=TRUE)^(1/n())) %>%
-    ungroup() %>%
-    
-    left_join(responses,by=c("id","condition")) %>%
+    group_by(id, condition) %>%
+    dplyr::mutate(
+      R2   = mean(R2, na.rm = TRUE),
+      dAUC = sum(sub.fit) / n(),
+      response=mean(response,na.rm=TRUE),
+      .groups = "drop"
+    ) %>%
     
     group_by(id) %>%
-    summarise(dAUC=sum(sub.fit)/n(),
-              CI=prod(p=ci.mean,na.rm=TRUE),
+    summarise(dAUC=sum(dAUC)/n(),
+              CI= sum(pointgap),
               R2prod=1-prod(1-R2,na.rm=TRUE),
               R2max=max(R2,na.rm=TRUE),
-              sum.response=sum(response,na.rm=TRUE),
-              max.response=ifelse(sum.response>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
-    na.omit() %>%
+              mean.response=mean(response,na.rm=TRUE),
+              max.response=ifelse(mean.response>0,max(response,na.rm=TRUE),min(response,na.rm=TRUE))) %>%
     ungroup() %>%
-    mutate(total.response=sum.response+max.response) %>%
-    mutate(Stabilization=ifelse(sum.response<0,"Destabilized","Stabilized"))
+    mutate(total.response=mean.response+max.response) %>%
+    mutate(Stabilization=ifelse(mean.response<0,"Destabilized","Stabilized"))
     
   
   if(!is.na(minresponse[2] & !is.na(CIthreshold[2] & !is.na(R2line[2])))) {
     hit_data <- hit_data %>%
-      mutate(hit=ifelse(CI<=CIthreshold[2]&R2max>=R2line[2]&abs(total.response)>=minresponse[2],"candidate",""))
+      mutate(hit=ifelse(CI>=CIthreshold[2]&R2max>=R2line[2]&abs(total.response)>=minresponse[2],"candidate",""))
     secondline=TRUE
   } else {
     hit_data <- hit_data %>% mutate(hit="")
     secondline=FALSE
   }
   hit_data <- hit_data %>%
-    mutate(hit=ifelse(CI<=CIthreshold[1]&R2max>=R2line[1]&abs(total.response)>=minresponse[1],"hit",hit))
+    mutate(hit=ifelse(CI>=CIthreshold[1]&R2max>=R2line[1]&abs(total.response)>=minresponse[1],"hit",hit))
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
   
@@ -205,7 +166,7 @@ ITDRMS.hit <- function(
                                  label.text.size=2.5,
                                  label.force=1.3,
                                  xlims=c(-max(1,abs(hit_data$total.response))-1, +max(1,abs(hit_data$total.response))+1),
-                                 ylims=c(min(-log10(hit_data$CI)),max(-log10(hit_data$CI))),
+                                 ylims=c(min(hit_data$CI),max(hit_data$CI)),
                                  point.sizes=c(1,2),
                                  point.colors=c("gray","red3","green3","coral2","darkolivegreen2"),
                                  axis.title.size=18,
@@ -238,8 +199,8 @@ ITDRMS.hit <- function(
   }
   
   hit_plot <- hit_data %>% arrange(hit) %>%
-    ggplot(aes(total.response, -log10(CI))) +
-    geom_hline(yintercept = -log10(ifelse(secondline,CIthreshold[2],CIthreshold[1])), linetype = "dashed", color = "gray80") +
+    ggplot(aes(total.response, CI)) +
+    geom_hline(yintercept = ifelse(secondline,CIthreshold[2],CIthreshold[1]), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = min(minresponse), linetype = "dashed", color = "gray80") +
     geom_vline(xintercept = (-1) * min(minresponse), linetype = "dashed", color = "gray80") +
     geom_point(aes(
@@ -292,7 +253,7 @@ ITDRMS.hit <- function(
   
   if(addPOI) {
     hit_plot <- hit_plot + 
-      geom_point(data=POIdata, aes(total.response,-log(CI,10)), color=plot.settings$POI.color,size=plot.settings$POI.size)
+      geom_point(data=POIdata, aes(total.response,CI), color=plot.settings$POI.color,size=plot.settings$POI.size)
   }
   
   if(plot.settings$labels) {

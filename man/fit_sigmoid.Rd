@@ -4,7 +4,7 @@
 \alias{fit_sigmoid}
 \title{fit_sigmoid}
 \usage{
-fit_sigmoid(data, e_guess_lim = 0.2)
+fit_sigmoid(data, tryfixedslope = TRUE)
 }
 \description{
 fit_sigmoid

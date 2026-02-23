@@ -203,9 +203,9 @@ ITDRMS.plot <- function(
     cur_fakedata <- fakedata %>% setNames("Dose")
     for(T in unique(cur_data$condition)) {
       Tfit <- fits[[paste0(p,";",T)]]
-      if(class(Tfit) %in% c("lm","nls","drc")) {
+      if(!is.null(Tfit)) {
         cur_fakedata <- bind_cols(cur_fakedata,
-                                  predict(fits[[paste0(p,";",T)]], fakedata)%>%as.data.frame()%>%setNames(T)
+                                  predict_clean(fits[[paste0(p,";",T)]], fakedata)%>%as.data.frame()%>%setNames(T)
         )
       }
     }

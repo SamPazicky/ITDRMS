@@ -3,6 +3,7 @@
 #' Fits the scaled data.
 #' @param data Data frame scaled mass spec data
 #' @param ncores Integer: How many cores to use for fitting. Default is 1.
+#' @param ram Integer: Size allowed for parallel computing in GB.
 #' @param fit.length Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
 #' @param control.slope Boolean: Can the control temperature lines be fitted with y=ax+b (TRUE) or just a horizontal line (y=b)?
 #' @param outlier.removal Logical: If TRUE (default is TRUE), outliers will be identified as points that significantly worsen the fit and removed.
@@ -11,6 +12,9 @@
 #' @import magrittr
 #' @importFrom gtools mixedsort
 #' @import drc
+#' @import progressr
+#' @import future.apply
+#' @import future
 #' 
 #' @return A list with three elements. $data is a data frame with the fitted data, $fits is a list with fit objects and $curvy_controls is a data frame with those proteins, that show dose-response behaviour at the lowest temperature (baseline has a sigmoid shape).
 #' @examples 
@@ -20,10 +24,18 @@
 ITDRMS.fit = function(
     data=NULL,
     ncores=1,
+    ram=8,
     fit.length=100,
-    control.slope=FALSE,
+    control.slope=c("horizontal","linear","sigmoid"),
     outlier.removal=TRUE)
 {
+
+  on.exit({
+    sink(NULL, type = "message")
+    options(future.globals.MaxSize = 500 * 1024^2)
+    plan(sequential)
+  }, add = TRUE)
+  
 
   if(is.null(data)) {
     stop("Please include data")
@@ -32,7 +44,7 @@ ITDRMS.fit = function(
   }
   
   # calculate average dilution factor
-  dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE)
+  suppressWarnings( dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE) )
   dil.factor <- mean(dils[-length(dils)]/dils[-1]) %>% round(2)
   
   
@@ -66,129 +78,207 @@ ITDRMS.fit = function(
   fits=list()
   
   ratio_data_control <- ratio_data[grep(controlcond,row.names(ratio_data)),]
-  column_names <- c(paste0("conf.int_", ratio_columns), 
-                    paste0("fit_", ratio_columns), 
-                    "fit", "R2", "Slope", "EC50")
   
-  # Create an empty data frame with these column names
-  control_fitresults <- data.frame(matrix(ncol = length(column_names), nrow = 0)) %>%
-    setNames(column_names) %>%
-    mutate(across(everything(), as.numeric)) %>%
-    mutate(fit=as.character(fit))
-  
-  cat("\nFitting control lines... \n")
-  
-  zz<-file("temp.txt",open="wt")
-  sink(zz, type="message")
-  pb <- txtProgressBar(min=0, max=nrow(ratio_data_control), style=3, initial="")
-  for(i in 1:nrow(ratio_data_control)) {
+  if(control.slope!="sigmoid") {
+    
+    column_names <- c(paste0("conf.int_", ratio_columns), 
+                      paste0("fit_", ratio_columns), 
+                      "fit", "R2", "Slope", "EC50")
+    
+    # Create an empty data frame with these column names
+    control_fitresults <- data.frame(matrix(ncol = length(column_names), nrow = 0)) %>%
+      setNames(column_names) %>%
+      mutate(across(everything(), as.numeric)) %>%
+      mutate(fit=as.character(fit))
     
     
-    condition <- ratio_data_control %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[2]
-    id <- ratio_data_control %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[1]
-    fitname <- ratio_data_control %>% slice(i) %>% rownames()
-    fit_data_orig <- ratio_data_control %>% slice(i) %>% t() %>% as.data.frame() %>% rownames_to_column() %>%
-      mutate(across(everything(), as.double)) %>% setNames(c("x","y"))
-    fit_data <- fit_data_orig
-    fit_data$x[1] <- fit_data_orig$x[2]/dil.factor
-    y=fit_data$y
-    prev_rem <- which(is.na(y))
-    if(length(prev_rem)==0) {
-      prev_rem=length(y)+1
-    } 
-    cur_ratio_names <- ratio_columns[-prev_rem]
+    cat("\nFitting control lines... \n")
     
-    x=fit_data$x[-prev_rem]
-    y=fit_data$y[-prev_rem]
-    cur_ratio_columns = ratio_columns[-prev_rem]
-    cur_fit_data<-data.frame("x"=x,"y"=y)
-    
-    if(control.slope) {
-      linear <- try(lm(formula = y ~ log(x,dil.factor), na.action=na.omit), silent=TRUE)
-    } else {
-      linear <- try(lm(formula = y ~ 1, na.action=na.omit), silent=TRUE)
-    }
-    if(class(linear)!="try-error") {
-      R2linear <- summary(linear)$r.squared
+    zz<-file("temp.txt",open="wt")
+    sink(zz, type="message")
+    pb <- txtProgressBar(min=0, max=nrow(ratio_data_control), style=3, initial="")
+    for(i in 1:nrow(ratio_data_control)) {
       
-      #calculate linear prediction intervals
-      control_fitresults <- bind_rows(control_fitresults,
-                                      predict(linear, newdata=cur_fit_data%>%dplyr::select(x), interval="confidence") %>% as.data.frame() %>% 
-                                        mutate(half=upr-fit) %>% dplyr::select(fit, half) %>% setNames(c("fit","conf.int")) %>% 
-                                        mutate(x=cur_ratio_names) %>% pivot_longer(cols=!x) %>% unite("rowname",name,x) %>%
-                                        mutate(rowname=str_remove(rowname,"\\.$")) %>% 
-                                        mutate(rowname=factor(rowname,levels=gtools::mixedsort(unique(rowname)))) %>% arrange(rowname) %>% 
-                                        column_to_rownames("rowname") %>% t() %>% as.data.frame() %>%
-                                        mutate(fit="lm", "R2"=R2linear,"Slope"=coefficients(linear)[2],"EC50"=NA)
-      )
-    } 
-    
-    sigmoid <- try(fit_any_sigmoid(cur_fit_data),silent=TRUE,outFile="zzz.txt")
-    if(class(sigmoid)!="try-error"&!is.na(sigmoid[1])) {
-      R2sigmoid <- 1 - sum((residuals(sigmoid)^2))/sum((y-mean(y))^2)
-      if( R2sigmoid>=0.6 & abs(coefficients(sigmoid)[2]-coefficients(sigmoid)[3])>=0.2 ) {
-        curvy_controls <- bind_rows(curvy_controls,
-                                    data.frame(
-                                      "id.condition"=rownames(ratio_data_control)[i],
-                                      "fit"="nls",
-                                      "R2"=R2sigmoid,
-                                      "Slope"=coefficients(sigmoid)[1],
-                                      "EC50"=coefficients(sigmoid)[4]
-                                    ) %>% remove_rownames() %>% separate_wider_delim("id.condition",";",names=c("id","condition"))
+      
+      condition <- ratio_data_control %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[2]
+      id <- ratio_data_control %>% slice(i) %>% rownames() %>% str_split(.,pattern=";") %>% unlist %>% .[1]
+      fitname <- ratio_data_control %>% slice(i) %>% rownames()
+      fit_data_orig <- ratio_data_control %>% slice(i) %>% t() %>% as.data.frame() %>% rownames_to_column() %>%
+        mutate(across(everything(), as.double)) %>% setNames(c("x","y"))
+      fit_data <- fit_data_orig
+      fit_data$x[1] <- fit_data_orig$x[2]/dil.factor
+      y=fit_data$y
+      prev_rem <- which(is.na(y))
+      if(length(prev_rem)==0) {
+        prev_rem=length(y)+1
+      } 
+      cur_ratio_names <- ratio_columns[-prev_rem]
+      
+      x=fit_data$x[-prev_rem]
+      y=fit_data$y[-prev_rem]
+      cur_ratio_columns = ratio_columns[-prev_rem]
+      cur_fit_data<-data.frame("x"=x,"y"=y)
+      
+      if(control.slope=="linear") {
+        linear <- try(lm(formula = y ~ log(x,dil.factor), na.action=na.omit), silent=TRUE)
+      } else {
+        linear <- try(lm(formula = y ~ 1, na.action=na.omit), silent=TRUE)
+      }
+      if(class(linear)!="try-error") {
+        R2linear <- summary(linear)$r.squared
+        
+        #calculate linear prediction intervals
+        control_fitresults <- bind_rows(control_fitresults,
+                                        predict(linear, newdata=cur_fit_data%>%dplyr::select(x), interval="confidence") %>% as.data.frame() %>% 
+                                          mutate(half=upr-fit) %>% dplyr::select(fit, half) %>% setNames(c("fit","conf.int")) %>% 
+                                          mutate(x=cur_ratio_names) %>% pivot_longer(cols=!x) %>% unite("rowname",name,x) %>%
+                                          mutate(rowname=str_remove(rowname,"\\.$")) %>% 
+                                          mutate(rowname=factor(rowname,levels=gtools::mixedsort(unique(rowname)))) %>% arrange(rowname) %>% 
+                                          column_to_rownames("rowname") %>% t() %>% as.data.frame() %>%
+                                          mutate(fit="lm", "R2"=R2linear,"Slope"=coefficients(linear)[2],"EC50"=NA)
         )
+      } 
+      
+      sigmoid <- try(fit_any_sigmoid(cur_fit_data),silent=TRUE,outFile="zzz.txt")
+      if(class(sigmoid)!="try-error"&!is.na(sigmoid[1])) {
+        R2sigmoid <- 1 - sum((residuals(sigmoid)^2))/sum((y-mean(y))^2)
+        if( R2sigmoid>=0.6 & abs(coefficients(sigmoid)[2]-coefficients(sigmoid)[3])>=0.2 ) {
+          curvy_controls <- bind_rows(curvy_controls,
+                                      data.frame(
+                                        "id.condition"=rownames(ratio_data_control)[i],
+                                        "fit"="nls",
+                                        "R2"=R2sigmoid,
+                                        "Slope"=coefficients(sigmoid)[1],
+                                        "EC50"=coefficients(sigmoid)[4]
+                                      ) %>% remove_rownames() %>% separate_wider_delim("id.condition",";",names=c("id","condition"))
+          )
+        }
+        
       }
       
+      
+      
+      fits[[fitname]] <- linear
+      
+      
+      setTxtProgressBar(pb, i)
+    }
+    sink(NULL, type="message")
+    close(pb) # to close the progress bar
+    
+    
+  } else {
+    curvy_controls <- NULL
+    
+    cat("Fitting control curves with log-logistic function... \n")
+    
+    if(ncores==1) {
+      pb <- txtProgressBar(min=0, max=nrow(ratio_data_control), style=3, initial="")
+      control_fitresults_fits <- progress_lapply(1:nrow(ratio_data_control), 
+                                               function(xx) ITDRMS_sub.fit(data=ratio_data_control,i=xx,outlier.removal=FALSE),
+                                               pb)
+    } else {
+      options(future.globals.maxSize = ram*1024^3)
+      handlers(global = TRUE)
+      handlers("progress")  # text progress bar
+      plan(multisession, workers = ncores)
+      
+      with_progress({
+        p <- progressor(along = 1:nrow(ratio_data_control))
+        control_fitresults_fits <- future_lapply(
+          1:nrow(ratio_data_control),
+          function(x) {
+            p() # update progress
+            suppressMessages({
+              tryCatch(
+                {
+                  ITDRMS_sub.fit(
+                    data = ratio_data_control,
+                    i = x,
+                    outlier.removal = outlier.removal
+                  )
+                },
+                error = function(e) {
+                  # Return a list indicating the error and which row failed
+                  list(error = TRUE, message = e$message, i = x)
+                }
+              )
+            })
+          },
+          future.globals = list(
+            ITDRMS_sub.fit = ITDRMS_sub.fit,
+            ratio_data_control = ratio_data_control,
+            outlier.removal = outlier.removal,
+            fit_sigmoid=fit_sigmoid,
+            p=p
+          ),
+          future.chunk.size=50
+        )
+        # for (i in seq_along(conds_fitresults_fits)) p()
+      })
+      plan(sequential)
     }
     
-
+    names(control_fitresults_fits) <- rownames(ratio_data_control)
     
-    fits[[fitname]] <- linear
-    
-    
-    setTxtProgressBar(pb, i)
+    control_fitresults <- lapply(control_fitresults_fits, function(x) x$data) %>%
+      rbindlist(use.names=TRUE,fill=TRUE)
+    fits <- lapply(control_fitresults_fits, function(x) x$fit)
   }
-  sink(NULL, type="message")
-  close(pb) # to close the progress bar
+  
+  #hightemp conditions
   
   ratio_data_conds <- ratio_data[-grep(controlcond,row.names(ratio_data)),]
-  
-  # cat("Subtracting baselines... \n")
-  # pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
-  # 
-  # for(i in 1:nrow(ratio_data_conds)) {
-  #   protein=str_extract(row.names(ratio_data_conds)[i], "^.*(?=;)")
-  #   # subrow <- ratio_data_control[grep(protein,row.names(ratio_data_control)),]
-  #   subrow <- control_fitresults[grep(paste0(protein,";"),row.names(ratio_data_control)),] %>% dplyr::select(starts_with("fit")) %>% dplyr::select(!fit)
-  #   if(nrow(subrow)==0) {
-  #     next
-  #   }
-  #   ratio_data_conds[i,] = ratio_data_conds[i,] - subrow + 1
-  #   setTxtProgressBar(pb, i)
-  #   
-  # }
-  # close(pb)
-  
   conds_fitresults_fits <- list()
-  cat("Fitting curves with log-logistic function... \n")
   
-  pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
   if(ncores<=1) {
+    pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
+    cat("Fitting curves with log-logistic function... \n")
     
     conds_fitresults_fits <- progress_lapply(1:nrow(ratio_data_conds), 
                                         function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx,outlier.removal=outlier.removal),
                                         pb)
   } else {
-    require(parabar)
-    require(parallel)
-    set_option("progress_track", TRUE)
-    set_option("stop_forceful", TRUE)
-    backend <- start_backend(cores = ncores, cluster_type = "psock", backend_type = "async")
-    export(backend, c("pb","ITDRMS_sub.fit","fit_sigmoid", "outlier.removal","ratio_data_conds"), envir = environment())
+
+    handlers(global = TRUE)
+    handlers("progress")  # text progress bar
     
-    conds_fitresults_fits <- par_lapply(backend, 1:nrow(ratio_data_conds), function(x)
-      ITDRMS_sub.fit(data=ratio_data_conds,i=x,outlier.removal=outlier.removal)
-    )
-    stop_backend(backend)
+    plan(multisession, workers = ncores)
+
+    with_progress({
+      p <- progressor(along = 1:nrow(ratio_data_conds))
+      conds_fitresults_fits <- future_lapply(
+        1:nrow(ratio_data_conds),
+        function(x) {
+          p() # update progress
+          suppressMessages({
+            tryCatch(
+              {
+                ITDRMS_sub.fit(
+                  data = ratio_data_conds,
+                  i = x,
+                  outlier.removal = outlier.removal
+                )
+              },
+              error = function(e) {
+                # Return a list indicating the error and which row failed
+                list(error = TRUE, message = e$message, i = x)
+              }
+            )
+          })
+        },
+        future.globals = list(
+          ITDRMS_sub.fit = ITDRMS_sub.fit,
+          ratio_data_conds = ratio_data_conds,
+          outlier.removal = outlier.removal,
+          fit_sigmoid=fit_sigmoid,
+          p=p
+        ),
+        future.chunk.size=50
+      )
+    })
+    plan(sequential)
+    
   }
   
   names(conds_fitresults_fits) <- rownames(ratio_data_conds)
@@ -196,16 +286,38 @@ ITDRMS.fit = function(
     rbindlist(use.names=TRUE,fill=TRUE)
   fits <- c(fits, lapply(conds_fitresults_fits, function(x) x$fit))
   
+  #extract only important parts of fits:
+  clean_fits <- lapply(fits, function(fit) {
+    
+    # ---- drc fits ----
+    if (inherits(fit, "drc")) {
+      
+      list(
+        model_type = "LL4",
+        coef = coef(fit)
+      )
+      
+      # ---- linear fits ----
+    } else if (inherits(fit, "lm")) {
+      
+      list(
+        model_type = "lm",
+        coef = coef(fit)
+      )
+      
+    } else {
+      NULL
+    }
+  })
+  
   fitresults <- bind_rows(control_fitresults,conds_fitresults)
   # if the calculated EC50 is lower than lowest drug concentration, then it might as well just be an outlier in the
   # zero-drug concentration. The experiment should be repeated with lower drug doses.
   
   all_data <- bind_cols(data,fitresults) %>%
     mutate(EC50=ifelse(EC50<as.numeric(ratio_columns[2]), paste0("<",as.numeric(ratio_columns[2])), EC50))
-  
-  # calculate fit and prediction values at EC50 with propagate package
-  
-  output <- list("data"=all_data,"fits"=fits, "curvy_controls"=curvy_controls)
+
+  output <- list("data"=all_data,"fits"=clean_fits, "curvy_controls"=curvy_controls)
   return(output)
 }
 
