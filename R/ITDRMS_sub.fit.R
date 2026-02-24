@@ -14,7 +14,6 @@ ITDRMS_sub.fit = function(
     if(exists("zz")) {
       close(zz)
     }
-  })
   
   clean.fit <- function(fit)
   {
@@ -39,7 +38,7 @@ ITDRMS_sub.fit = function(
     return(cfit)
   }
   
-  zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
+  zz<-file("temp.txt",open="wt")
   sink(zz, type="message")
   
   dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE)

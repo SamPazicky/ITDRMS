@@ -99,7 +99,7 @@ ITDRMS.fit = function(
     
     cat("\nFitting control lines... \n")
     
-    zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
+    zz<-file("temp.txt",open="wt")
     sink(zz, type="message")
     pb <- txtProgressBar(min=0, max=nrow(ratio_data_control), style=3, initial="")
     for(i in 1:nrow(ratio_data_control)) {
