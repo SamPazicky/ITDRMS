@@ -161,6 +161,7 @@ progress_lapply <- function(X, FUN, pb, ...) {
     setTxtProgressBar(pb, i)  # Update progress
   }
   sink(NULL,type="message")
+  close(zz)
   close(pb)  # Close progress bar when done
   return(result)
 }

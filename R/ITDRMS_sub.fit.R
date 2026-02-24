@@ -9,6 +9,9 @@ ITDRMS_sub.fit = function(
   require(tidyverse)
   require(data.table)
   
+  zz<-file("temp.txt",open="wt")
+  sink(zz, type="message")
+  
   dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE)
   dil.factor <- mean(dils[-length(dils)]/dils[-1]) %>% round(2)
   
@@ -107,6 +110,10 @@ ITDRMS_sub.fit = function(
       column_to_rownames("rows") %>% setNames(row.names(data)[i]) %>% t() %>% as.data.frame() %>%
       setNames(c(if(length(cur_ratio_columns)==0){NULL} else {paste0("fit_",cur_ratio_columns)}, "fit","R2","R2orig","Slope","EC50"))
   }
+  
+  sink(NULL, type = "message")
+  close(zz)
+  
   output <- list(
     data=conds_fitresults,
     fit=sigmoid

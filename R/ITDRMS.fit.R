@@ -34,6 +34,9 @@ ITDRMS.fit = function(
 
   on.exit({
     sink(NULL, type = "message")
+    if(exists("zz")) {
+      close(zz)
+    }
     options(future.globals.MaxSize = 500 * 1024^2)
     plan(sequential)
   }, add = TRUE)
