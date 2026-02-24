@@ -303,7 +303,7 @@ ITDRMS.fit = function(
   all_data <- bind_cols(data,fitresults) %>%
     mutate(EC50=ifelse(EC50<as.numeric(ratio_columns[2]), paste0("<",as.numeric(ratio_columns[2])), EC50))
 
-  output <- list("data"=all_data,"fits"=clean_fits, "curvy_controls"=curvy_controls)
+  output <- list("data"=all_data,"fits"=fits, "curvy_controls"=curvy_controls)
   return(output)
 }
 
