@@ -160,14 +160,12 @@ progress_lapply <- function(X, FUN, pb, ...) {
     }
   })
   result <- vector("list", length(X))
-  zz<-file("temp.txt",open="wt")
+  zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
   sink(zz, type="message")
   for (i in seq_along(X)) {
     result[[i]] <- FUN(X[[i]], ...)  # Apply function
     setTxtProgressBar(pb, i)  # Update progress
   }
-  sink(NULL,type="message")
-  close(zz)
   close(pb)  # Close progress bar when done
   return(result)
 }

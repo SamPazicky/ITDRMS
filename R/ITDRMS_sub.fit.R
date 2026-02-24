@@ -39,7 +39,7 @@ ITDRMS_sub.fit = function(
     return(cfit)
   }
   
-  zz<-file("temp.txt",open="wt")
+  zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
   sink(zz, type="message")
   
   dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE)
@@ -141,8 +141,6 @@ ITDRMS_sub.fit = function(
       setNames(c(if(length(cur_ratio_columns)==0){NULL} else {paste0("fit_",cur_ratio_columns)}, "fit","R2","R2orig","Slope","EC50"))
   }
   
-  sink(NULL, type = "message")
-  close(zz)
   cf <- clean.fit(sigmoid)
   
   output <- list(
