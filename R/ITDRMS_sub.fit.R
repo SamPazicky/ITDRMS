@@ -14,6 +14,7 @@ ITDRMS_sub.fit = function(
     if(exists("zz")) {
       close(zz)
     }
+  })
   
   clean.fit <- function(fit)
   {
