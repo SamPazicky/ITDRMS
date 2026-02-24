@@ -245,10 +245,9 @@ ITDRMS.fit = function(
   ratio_data_conds <- ratio_data[-grep(controlcond,row.names(ratio_data)),]
   conds_fitresults_fits <- list()
   
+  cat("Fitting curves with log-logistic function... \n")
   if(ncores<=1) {
     pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
-    cat("Fitting curves with log-logistic function... \n")
-    
     conds_fitresults_fits <- progress_lapply(1:nrow(ratio_data_conds), 
                                              function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx,
                                                                          outlier.removal=outlier.removal, max.out=max.out),
