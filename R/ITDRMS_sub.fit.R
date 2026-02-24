@@ -113,10 +113,11 @@ ITDRMS_sub.fit = function(
   
   sink(NULL, type = "message")
   close(zz)
+  cf <- clean.fit(sigmoid)
   
   output <- list(
     data=conds_fitresults,
-    fit=sigmoid
+    fit=cf
   )
   return(output)
 }

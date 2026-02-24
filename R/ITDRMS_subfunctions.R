@@ -274,3 +274,27 @@ predict_clean <- function(clean_fit, x, dil.factor = exp(1)) {
     return(intercept + slope * log(x, base = dil.factor))
   }
 }
+
+#` clean.fit
+clean.fit <- function(fit)
+{
+  if (inherits(fit, "drc")) {
+    
+    cfit <- list(
+      model_type = "LL4",
+      coef = coef(fit)
+    )
+    
+    # ---- linear fits ----
+  } else if (inherits(fit, "lm")) {
+    
+    cfit <- list(
+      model_type = "lm",
+      coef = coef(fit)
+    )
+    
+  } else {
+    cfit <- NULL
+  }
+  return(cfit)
+}
