@@ -221,9 +221,16 @@ ITDRMS.fit = function(
           ),
           future.scheduling=1
         )
-        # for (i in seq_along(conds_fitresults_fits)) p()
       })
       plan(sequential)
+      failed <- control_fitresults_fits %>% setNames(rownames(ratio_data_control)) %>% lapply(length) %>% stack() %>% setNames(c("n","name")) %>% rownames_to_column("no") %>% filter(n!=2) %>% pull(no) %>% as.numeric()
+      if(length(failed)>0) {
+        cat(paste0("Redoing ",length(failed)," failed fits.\n"))
+        suppressWarnings(
+          control_fitresults_fits[failed] <- lapply(failed, function(xx) ITDRMS_sub.fit(data=ratio_data_control,i=xx, outlier.removal=outlier.removal, max.out=max.out))
+        )
+      }
+      cat("\n\n")
     }
     
     names(control_fitresults_fits) <- rownames(ratio_data_control)
@@ -288,7 +295,14 @@ ITDRMS.fit = function(
       )
     })
     plan(sequential)
-    
+    failed <- conds_fitresults_fits %>% setNames(rownames(ratio_data_conds)) %>% lapply(length) %>% stack() %>% setNames(c("n","name")) %>% rownames_to_column("no") %>% filter(n!=2) %>% pull(no) %>% as.numeric()
+    if(length(failed)>0) {
+      cat(paste0("Redoing ",length(failed)," failed fits.\n"))
+      suppressWarnings(
+        conds_fitresults_fits[failed] <- lapply(failed, function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx, outlier.removal=outlier.removal, max.out=max.out))
+      )
+    }
+    cat("\n\n")
   }
   
   names(conds_fitresults_fits) <- rownames(ratio_data_conds)
