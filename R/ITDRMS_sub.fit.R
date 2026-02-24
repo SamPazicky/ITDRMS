@@ -9,6 +9,13 @@ ITDRMS_sub.fit = function(
   require(tidyverse)
   require(data.table)
   
+  on.exit({
+    sink(NULL, type = "message")
+    if(exists("zz")) {
+      close(zz)
+    }
+  })
+  
   clean.fit <- function(fit)
   {
     if (inherits(fit, "drc")) {
@@ -32,7 +39,7 @@ ITDRMS_sub.fit = function(
     return(cfit)
   }
   
-  zz<-file("temp.txt",open="wt")
+  zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
   sink(zz, type="message")
   
   dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE)

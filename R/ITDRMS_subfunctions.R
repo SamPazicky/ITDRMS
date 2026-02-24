@@ -153,8 +153,14 @@ fit_MC <- function(data) {
 
 #` progress_lapply
 progress_lapply <- function(X, FUN, pb, ...) {
+  on.exit({
+    sink(NULL, type = "message")
+    if(exists("zz")) {
+      close(zz)
+    }
+  })
   result <- vector("list", length(X))
-  zz<-file("temp.txt",open="wt")
+  zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
   sink(zz, type="message")
   for (i in seq_along(X)) {
     result[[i]] <- FUN(X[[i]], ...)  # Apply function
