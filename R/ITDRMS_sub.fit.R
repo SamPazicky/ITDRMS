@@ -9,6 +9,29 @@ ITDRMS_sub.fit = function(
   require(tidyverse)
   require(data.table)
   
+  clean.fit <- function(fit)
+  {
+    if (inherits(fit, "drc")) {
+      
+      cfit <- list(
+        model_type = "LL4",
+        coef = coef(fit)
+      )
+      
+      # ---- linear fits ----
+    } else if (inherits(fit, "lm")) {
+      
+      cfit <- list(
+        model_type = "lm",
+        coef = coef(fit)
+      )
+      
+    } else {
+      cfit <- NULL
+    }
+    return(cfit)
+  }
+  
   zz<-file("temp.txt",open="wt")
   sink(zz, type="message")
   

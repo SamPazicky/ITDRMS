@@ -223,67 +223,6 @@ ITDRMS.fit = function(
         )
         # for (i in seq_along(conds_fitresults_fits)) p()
       })
-      
-      ##
-      ##
-      # alt
-      n <- nrow(ratio_data_control)
-      ncores <- future::nbrOfWorkers()  # uses current plan
-      
-      # Split row indices into ncores chunks
-      idx_chunks <- split(seq_len(n),
-                          cut(seq_len(n), ncores, labels = FALSE))
-      
-      handlers(global = TRUE)
-      
-      with_progress({
-        
-        p <- progressor(steps = n)
-        
-        control_fitresults_chunks <- future_lapply(
-          
-          idx_chunks,
-          
-          function(indices) {
-            
-            # Each worker runs its chunk sequentially
-            lapply(indices, function(x) {
-              
-              result <- suppressMessages({
-                tryCatch(
-                  {
-                    ITDRMS_sub.fit(
-                      data = ratio_data_control,
-                      i = x,
-                      outlier.removal = outlier.removal,
-                      max.out = max.out
-                    )
-                  },
-                  error = function(e) {
-                    list(error = TRUE, message = e$message, i = x)
-                  }
-                )
-              })
-              
-              p()  # update progress AFTER finishing task
-              result
-            })
-          },
-          
-          future.globals = list(
-            ITDRMS_sub.fit = ITDRMS_sub.fit,
-            ratio_data_control = ratio_data_control,
-            outlier.removal = outlier.removal,
-            fit_sigmoid = fit_sigmoid,
-            max.out = max.out,
-            p=p
-          )
-        )
-        
-      })
-      #alt
-      ##
-      ##
       plan(sequential)
     }
     
@@ -356,30 +295,6 @@ ITDRMS.fit = function(
   conds_fitresults <- lapply(conds_fitresults_fits, function(x) x$data) %>%
     rbindlist(use.names=TRUE,fill=TRUE)
   fits <- c(fits, lapply(conds_fitresults_fits, function(x) x$fit))
-  
-  # #extract only important parts of fits:
-  # clean_fits <- lapply(fits, function(fit) {
-  #   
-  #   # ---- drc fits ----
-  #   if (inherits(fit, "drc")) {
-  #     
-  #     list(
-  #       model_type = "LL4",
-  #       coef = coef(fit)
-  #     )
-  #     
-  #     # ---- linear fits ----
-  #   } else if (inherits(fit, "lm")) {
-  #     
-  #     list(
-  #       model_type = "lm",
-  #       coef = coef(fit)
-  #     )
-  #     
-  #   } else {
-  #     NULL
-  #   }
-  # })
   
   fitresults <- bind_rows(control_fitresults,conds_fitresults)
   # if the calculated EC50 is lower than lowest drug concentration, then it might as well just be an outlier in the
