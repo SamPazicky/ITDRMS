@@ -48,9 +48,6 @@ ITDRMS.fit = function(
     data=as.data.frame(data)
   }
   
-  if(Sys.info()[["sysname"]]=="Windows" & ncores>1) {
-    cat("Running on Windows. Setting ncores to 1. Multithreaded fitting only available on Linux/Ubuntu.\n")
-  }
   # calculate average dilution factor
   suppressWarnings( dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE) )
   dil.factor <- mean(dils[-length(dils)]/dils[-1]) %>% round(2)
@@ -189,7 +186,7 @@ ITDRMS.fit = function(
       options(future.globals.maxSize = ram*1024^3)
       handlers(global = TRUE)
       handlers("progress")  # text progress bar
-      plan(multicore, workers = ncores)
+      plan(multisession, workers = ncores)
       
       with_progress({
         p <- progressor(along = 1:nrow(ratio_data_control))
@@ -253,7 +250,7 @@ ITDRMS.fit = function(
     handlers(global = TRUE)
     handlers("progress")  # text progress bar
     
-    plan(multicore, workers = ncores)
+    plan(multisession, workers = ncores)
 
     with_progress({
       p <- progressor(along = 1:nrow(ratio_data_conds))
