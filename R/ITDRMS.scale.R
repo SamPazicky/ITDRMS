@@ -4,6 +4,7 @@
 #' @param data Data frame with the loaded and ideally cleaned up mass spec data
 #' @param remove.control.outliers Logical. If TRUE (default), the program will remove baseline points that significantly deviate from a straight line fit.
 #' @param remove.hightemp.outliers Logical: If TRUE (default), the program will remove high temperature data points that significantly deviate from a straight line fit. This can reduce false positives but also true positives. Use with caution. 
+#' @param max.out Integer: Maximum number of outliers in temperature challenge condition.
 #' @param normalization.points Integer: How many points should be used for baseline normalization of high temperature data points? Default is 1, but 2 are recommended for 10 doses and even more for more doses, depending on the thermal behaviour of the studied system.
 #' @param normalize.baseline Logical: If TRUE (default), all points of baseline data (lowest temperature) will be used to normalize the baseline and the average position of all points will be 1.
 #' @param normalize.selection Vector of length 2: If the data should be normalized only on a subset of data, what column and value should be used? For example, 
@@ -22,6 +23,7 @@ ITDRMS.scale = function(
     data=NULL,
     remove.control.outliers=TRUE,
     remove.hightemp.outliers=TRUE,
+    max.out=3,
     normalization.points=1, # how many points to use
     normalize.baseline=TRUE,
     normalize.selection=NULL # can be c("column","value") to normalize only based on a selection from column
@@ -189,7 +191,7 @@ ITDRMS.scale = function(
       
       # data for the particular protein
       y=hightempdata %>% slice(i) %>% unlist() %>% unname() 
-      outliers <- remove_outliers(x,y,max.out=3,if.max="outstanding")
+      outliers <- remove_outliers(x,y,max.out=max.out,if.max="outstanding")
       hightempdata[i,outliers] <- NA
       
       # rescale if the first point is the outlier

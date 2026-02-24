@@ -8,6 +8,7 @@ ITDRMS.scale(
   data = NULL,
   remove.control.outliers = TRUE,
   remove.hightemp.outliers = TRUE,
+  max.out = 3,
   normalization.points = 1,
   normalize.baseline = TRUE,
   normalize.selection = NULL
@@ -19,6 +20,8 @@ ITDRMS.scale(
 \item{remove.control.outliers}{Logical. If TRUE (default), the program will remove baseline points that significantly deviate from a straight line fit.}
 
 \item{remove.hightemp.outliers}{Logical: If TRUE (default), the program will remove high temperature data points that significantly deviate from a straight line fit. This can reduce false positives but also true positives. Use with caution.}
+
+\item{max.out}{Integer: Maximum number of outliers in temperature challenge condition.}
 
 \item{normalization.points}{Integer: How many points should be used for baseline normalization of high temperature data points? Default is 1, but 2 are recommended for 10 doses and even more for more doses, depending on the thermal behaviour of the studied system.}
 

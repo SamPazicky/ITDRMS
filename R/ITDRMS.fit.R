@@ -7,6 +7,7 @@
 #' @param fit.length Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
 #' @param control.slope Character: "horizontal" for linear fit with no slope, "linear" for linear with with slope, "sigmoid" for LL4 fit.
 #' @param outlier.removal Logical: If TRUE (default is TRUE), outliers will be identified as points that significantly worsen the fit and removed.
+#' @param max.out Integer: Maximum number of outliers in temperature challenge condition.
 #' 
 #' @import tidyverse
 #' @import magrittr
@@ -27,7 +28,8 @@ ITDRMS.fit = function(
     ram=8,
     fit.length=100,
     control.slope=c("horizontal","linear","sigmoid"),
-    outlier.removal=TRUE)
+    outlier.removal=TRUE,
+    max.out=3)
 {
 
   on.exit({
@@ -43,6 +45,9 @@ ITDRMS.fit = function(
     data=as.data.frame(data)
   }
   
+  if(Sys.info()[["sysname"]]=="Windows" & ncores>1) {
+    cat("Running on Windows. Setting ncores to 1. Multithreaded fitting only available on Linux/Ubuntu.\n")
+  }
   # calculate average dilution factor
   suppressWarnings( dils <- names(data) %>% as.numeric() %>% na.omit() %>% .[(.)!=0] %>% sort(decreasing=TRUE) )
   dil.factor <- mean(dils[-length(dils)]/dils[-1]) %>% round(2)
@@ -175,13 +180,13 @@ ITDRMS.fit = function(
     if(ncores==1) {
       pb <- txtProgressBar(min=0, max=nrow(ratio_data_control), style=3, initial="")
       control_fitresults_fits <- progress_lapply(1:nrow(ratio_data_control), 
-                                               function(xx) ITDRMS_sub.fit(data=ratio_data_control,i=xx,outlier.removal=FALSE),
+                                               function(xx) ITDRMS_sub.fit(data=ratio_data_control,i=xx,outlier.removal=FALSE, max.out=max.out),
                                                pb)
     } else {
       options(future.globals.maxSize = ram*1024^3)
       handlers(global = TRUE)
       handlers("progress")  # text progress bar
-      plan(multisession, workers = ncores)
+      plan(multicore, workers = ncores)
       
       with_progress({
         p <- progressor(along = 1:nrow(ratio_data_control))
@@ -195,7 +200,8 @@ ITDRMS.fit = function(
                   ITDRMS_sub.fit(
                     data = ratio_data_control,
                     i = x,
-                    outlier.removal = outlier.removal
+                    outlier.removal = outlier.removal,
+                    max.out=max.out
                   )
                 },
                 error = function(e) {
@@ -210,7 +216,8 @@ ITDRMS.fit = function(
             ratio_data_control = ratio_data_control,
             outlier.removal = outlier.removal,
             fit_sigmoid=fit_sigmoid,
-            p=p
+            p=p,
+            max.out=max.out
           ),
           future.chunk.size=50
         )
@@ -243,7 +250,7 @@ ITDRMS.fit = function(
     handlers(global = TRUE)
     handlers("progress")  # text progress bar
     
-    plan(multisession, workers = ncores)
+    plan(multicore, workers = ncores)
 
     with_progress({
       p <- progressor(along = 1:nrow(ratio_data_conds))

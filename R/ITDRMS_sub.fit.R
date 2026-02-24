@@ -2,7 +2,8 @@
 ITDRMS_sub.fit = function(
     data=NULL,
     i=1,
-    outlier.removal=TRUE
+    outlier.removal=TRUE,
+    max.out=3
 ) {
   
   require(tidyverse)
@@ -32,7 +33,7 @@ ITDRMS_sub.fit = function(
   cur_fit_data<-data.frame("x"=x,"y"=y)
   # try fitting LL.4 
   # if(!str_detect(condition,"[[:digit:]]C$")|length(prev_rem>1)) {
-  if(!length(prev_rem)>1) {
+  if(!length(prev_rem)>max.out) {
     if(str_detect(condition,"[[:digit:]]C$")) {
       tryfixedslope=TRUE
     } else {
@@ -42,7 +43,7 @@ ITDRMS_sub.fit = function(
     if(!class(sigmoid)=="list"&!class(sigmoid)=="try-error"&any(!is.na(sigmoid))) {
       R2sigmoid <- 1 - sum((residuals(sigmoid)^2))/sum((y-mean(y))^2)
       R2sigmoid_orig <- R2sigmoid
-      if(outlier.removal) {
+      if(outlier.removal & length(prev_rem)!=max.out) {
         outR2s <- vector()
         sigmoids_out <- list()
         for(out in seq_along(x)) {

@@ -10,7 +10,8 @@ ITDRMS.fit(
   ram = 8,
   fit.length = 100,
   control.slope = c("horizontal", "linear", "sigmoid"),
-  outlier.removal = TRUE
+  outlier.removal = TRUE,
+  max.out = 3
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ ITDRMS.fit(
 \item{control.slope}{Character: "horizontal" for linear fit with no slope, "linear" for linear with with slope, "sigmoid" for LL4 fit.}
 
 \item{outlier.removal}{Logical: If TRUE (default is TRUE), outliers will be identified as points that significantly worsen the fit and removed.}
+
+\item{max.out}{Integer: Maximum number of outliers in temperature challenge condition.}
 }
 \value{
 A list with three elements. $data is a data frame with the fitted data, $fits is a list with fit objects and $curvy_controls is a data frame with those proteins, that show dose-response behaviour at the lowest temperature (baseline has a sigmoid shape).

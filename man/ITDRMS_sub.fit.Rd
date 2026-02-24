@@ -4,7 +4,7 @@
 \alias{ITDRMS_sub.fit}
 \title{ITDRMS_sub.fit}
 \usage{
-ITDRMS_sub.fit(data = NULL, i = 1, outlier.removal = TRUE)
+ITDRMS_sub.fit(data = NULL, i = 1, outlier.removal = TRUE, max.out = 3)
 }
 \description{
 ITDRMS_sub.fit
