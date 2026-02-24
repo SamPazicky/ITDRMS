@@ -2,9 +2,10 @@
 #'
 #' Cleans the loaded mass spec data
 #' @param data Data frame with the loaded mass spec data
-#' @param keratin Logical: Should the keratins be removed?
+#' @param keratins Logical: Should the keratins be removed?
 #' @param serum Logical: Should the serum proteins be removed?
 #' @param trypsin Logical: Should trypsin be removed?
+#' @param inf.data Logical: Should data with infinite values be removed?
 #' 
 #' @import tidyverse
 #' @import magrittr
@@ -22,8 +23,6 @@ ITDRMS.clean <- function(
     trypsin=TRUE,
     inf.data=TRUE
 ) {
-  
-  require(tidyverse)
   
   if(is.null(data)) {
     stop("Please include data argument")
@@ -68,12 +67,10 @@ ITDRMS.clean <- function(
                          data %>% filter(if_any(everything(), ~ . %in% c(Inf,-Inf))) %>% dplyr::select(id,condition) %>% mutate(removal="Inf")
     )
     data <- data %>% filter(!if_any(everything(), ~ . %in% c(Inf,-Inf)))
-    
   }
   
+  cat("Contaminants removed.\n")
+
   output <- list("data"=data, "removed"=removed)
   return(output)
-  
-  cat("Contaminants removed.")
-  
 }

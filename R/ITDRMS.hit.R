@@ -2,7 +2,7 @@
 #'
 #' Identifies hits from fitted mass spec data.
 #' @param data Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
-#' @param CIthreshold Numeric vector: Confidence index cutoff. Default is c(0.05,0.1) for hits and candidates, respectively.
+#' @param CIthreshold Numeric vector: Confidence index cutoff. Default is c(1,0.75) for hits and candidates, respectively.
 #' @param minresponse Numeric vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5) for hits and candidates, respectively.
 #' @param R2line Numeric vector: R2  cutoff: Proteins with R-squared value below this value will not be considered as hits or candidates despite favorable response and confidence index.
 #' Default is c(0.6,0.7) for hits and candidates, respectively.
@@ -57,20 +57,12 @@ ITDRMS.hit <- function(
     )
   )
   
-  
   if(is.null(data)) {
     stop("Please include data")
   } else {
     data=as.data.frame(data)
   }
-
     
-  #log4 axis transformation
-  
-  require(scales) # trans_new() is in the scales library
-  log4_trans = function() trans_new("log4", function(x) log(x,4), function(x) 4^x)
-  
-  
   controlcond <- grep("^[[:digit:]]*C$", unique(data$condition), value=TRUE)
   conditions <- unique(data$condition)[-grep(controlcond,unique(data$condition))]
   
@@ -82,6 +74,7 @@ ITDRMS.hit <- function(
   data$maxresp <- apply(data[,grepl("fit_",names(data))],1,function(x) max(x,na.rm=TRUE))
   data$minresp <- apply(data[,grepl("fit_",names(data))],1,function(x) min(x,na.rm=TRUE))
   
+  #response calculation
   responses <- data %>%
     dplyr::select(id,condition,starts_with("fit_")) %>% # extracts fit values
     pivot_longer(cols=starts_with("fit"),names_to="concentration",values_to="fraction_soluble") %>% # everything into long format
@@ -97,7 +90,7 @@ ITDRMS.hit <- function(
     mutate(response=ifelse(abs(maxresp)>abs(minresp),maxresp,minresp)) %>% # keep only max or min response, depends on which is larger
     dplyr::select(!ends_with("resp"))
     
-  
+  #CI calculation
   hit_data <- data %>%
     dplyr::select(!ends_with("resp")) %>% # remove columns maxresp and minresp
     mutate(across(all_of(ratio_columns), ~ifelse(is.na(.x), NaN, .x))) %>% # to distinguish missing values (NA) and outliers (NaN)
@@ -124,8 +117,6 @@ ITDRMS.hit <- function(
     mutate(pointgap=abs(sub.fit)-sum.conf.int/2) %>%
     mutate(adsign=sign(sub.fit)) %>%
     mutate(pgsign=sign(pointgap)) %>%
-    # filter(pgsign==pgsign2) %>%
-    # mutate(pointgap=ifelse(pgsign>0,1+pointgap,1-pointgap)) %>%
     left_join(responses,by=c("id","condition"),relationship = "many-to-one") %>%
     
     group_by(id, condition) %>%
@@ -161,7 +152,7 @@ ITDRMS.hit <- function(
   
   labels <- interaction(unique(hit_data$Stabilization),unique(hit_data$hit), sep=" ")
   
-  
+  #plot settings
   plot.settings.defaults <- list(labels=TRUE,
                                  label.text.size=2.5,
                                  label.force=1.3,
@@ -184,6 +175,7 @@ ITDRMS.hit <- function(
     }
   }
   
+  #adding POI
   if(length(POI)==0) {
     addPOI=FALSE 
   } else {
@@ -198,6 +190,7 @@ ITDRMS.hit <- function(
     }
   }
   
+  #plotting
   hit_plot <- hit_data %>% arrange(hit) %>%
     ggplot(aes(total.response, CI)) +
     geom_hline(yintercept = ifelse(secondline,CIthreshold[2],CIthreshold[1]), linetype = "dashed", color = "gray80") +

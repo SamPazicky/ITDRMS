@@ -28,6 +28,8 @@ ITDRMS.load(
 
 \item{top.conc}{Integer. Top concentration of the drug dilution series.}
 
+\item{dilution}{Integer stating the dilution factor of the drug dilution series.}
+
 \item{direction}{Character string. "decreasing" when the loaded data contains highest concentration first, "increasing" otherwise.}
 
 \item{control.tube}{Character string. "last" if the vehicle control is last in the loaded data, otherwise "first".}
@@ -36,8 +38,6 @@ ITDRMS.load(
 
 \item{concentrations}{Integer vector with the concentrations of drug used in the assay. Default is NA. If specified, it overwrites
 dilution, tp.conc, direction, control.tube and tubes.}
-
-\item{dilutions}{Integer stating the dilution factor of the drug dilution series.}
 }
 \value{
 List with two data.frames: $curves can be used in the next step of ITDRMS pipeline, $data can be saved as a csv.

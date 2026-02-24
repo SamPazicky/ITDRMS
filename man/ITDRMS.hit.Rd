@@ -16,7 +16,7 @@ ITDRMS.hit(
 \arguments{
 \item{data}{Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.}
 
-\item{CIthreshold}{Numeric vector: Confidence index cutoff. Default is c(0.05,0.1) for hits and candidates, respectively.}
+\item{CIthreshold}{Numeric vector: Confidence index cutoff. Default is c(1,0.75) for hits and candidates, respectively.}
 
 \item{minresponse}{Numeric vector: Minimal change in the solubility to be considered hit or candidate. Default is c(1,0.5) for hits and candidates, respectively.}
 

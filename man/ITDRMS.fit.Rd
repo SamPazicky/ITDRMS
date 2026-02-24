@@ -22,7 +22,7 @@ ITDRMS.fit(
 
 \item{fit.length}{Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.}
 
-\item{control.slope}{Boolean: Can the control temperature lines be fitted with y=ax+b (TRUE) or just a horizontal line (y=b)?}
+\item{control.slope}{Character: "horizontal" for linear fit with no slope, "linear" for linear with with slope, "sigmoid" for LL4 fit.}
 
 \item{outlier.removal}{Logical: If TRUE (default is TRUE), outliers will be identified as points that significantly worsen the fit and removed.}
 }

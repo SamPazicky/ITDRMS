@@ -7,7 +7,7 @@
 #' @param orgs Character vector listing files with data of what organisms there are in the datafolder. Default is c("Pf","Hs").
 #' @param temperatures Integer vector with temperatures at which the assay was conducted. Default is c(37,53,59,65).
 #' @param top.conc Integer. Top concentration of the drug dilution series.
-#' @param dilutions Integer stating the dilution factor of the drug dilution series.
+#' @param dilution Integer stating the dilution factor of the drug dilution series.
 #' @param direction Character string. "decreasing" when the loaded data contains highest concentration first, "increasing" otherwise.
 #' @param control.tube Character string. "last" if the vehicle control is last in the loaded data, otherwise "first".
 #' @param tubes Integer. How many tubes (including vehicle control)? Default is 10 assuming TMT10 labeling.

@@ -15,11 +15,13 @@ ITDRMS.clean(
 \arguments{
 \item{data}{Data frame with the loaded mass spec data}
 
+\item{keratins}{Logical: Should the keratins be removed?}
+
 \item{serum}{Logical: Should the serum proteins be removed?}
 
 \item{trypsin}{Logical: Should trypsin be removed?}
 
-\item{keratin}{Logical: Should the keratins be removed?}
+\item{inf.data}{Logical: Should data with infinite values be removed?}
 }
 \value{
 List of two elements. $data is the data frame with contaminants removed and $removed is the data frame listing the removed contaminants.

@@ -3,7 +3,7 @@
 #' Scaling and normalization of the data.
 #' @param data Data frame with the loaded and ideally cleaned up mass spec data
 #' @param remove.control.outliers Logical. If TRUE (default), the program will remove baseline points that significantly deviate from a straight line fit.
-#' @param remove.hightemp.outliers Logical: If TRUE (default is FALSE), the program will remove high temperature data points that significantly deviate from a straight line fit. This can reduce false positives but also true positives. Use with caution. 
+#' @param remove.hightemp.outliers Logical: If TRUE (default), the program will remove high temperature data points that significantly deviate from a straight line fit. This can reduce false positives but also true positives. Use with caution. 
 #' @param normalization.points Integer: How many points should be used for baseline normalization of high temperature data points? Default is 1, but 2 are recommended for 10 doses and even more for more doses, depending on the thermal behaviour of the studied system.
 #' @param normalize.baseline Logical: If TRUE (default), all points of baseline data (lowest temperature) will be used to normalize the baseline and the average position of all points will be 1.
 #' @param normalize.selection Vector of length 2: If the data should be normalized only on a subset of data, what column and value should be used? For example, 
@@ -176,13 +176,6 @@ ITDRMS.scale = function(
  
     ratio_data_norm[grep(controlcond,rownames(ratio_data_norm)),] <- controldata
   }
-  
-  
-  # check high-temp conditions - I always remove one outlier and fit lm. If a removal of an outlier causes the
-  # curve to completely flatten (slope close to zero) then the entire sigmoid fit depends just on that point thus
-  # it is not a confident hit. Then this point should be removed and if it is a first point, second point needs to be
-  # scaled to 1
-  
   
   if (remove.hightemp.outliers) {
     cat("Removing sigmoid fit outliers...\n")

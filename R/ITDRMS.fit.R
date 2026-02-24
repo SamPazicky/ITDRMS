@@ -5,7 +5,7 @@
 #' @param ncores Integer: How many cores to use for fitting. Default is 1.
 #' @param ram Integer: Size allowed for parallel computing in GB.
 #' @param fit.length Integer: How many points should be used for fitting curves. Default is 100 which is sufficient for plotting.
-#' @param control.slope Boolean: Can the control temperature lines be fitted with y=ax+b (TRUE) or just a horizontal line (y=b)?
+#' @param control.slope Character: "horizontal" for linear fit with no slope, "linear" for linear with with slope, "sigmoid" for LL4 fit.
 #' @param outlier.removal Logical: If TRUE (default is TRUE), outliers will be identified as points that significantly worsen the fit and removed.
 #' 
 #' @import tidyverse
