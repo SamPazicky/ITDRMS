@@ -70,6 +70,8 @@ ITDRMS_sub.fit = function(
         } else {
           outlier=100
         }
+      } else {
+        outlier=100
       }
     } else {
       sigmoid <- list()

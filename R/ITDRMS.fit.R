@@ -216,8 +216,7 @@ ITDRMS.fit = function(
             ratio_data_control = ratio_data_control,
             outlier.removal = outlier.removal,
             fit_sigmoid=fit_sigmoid,
-            p=p,
-            max.out=max.out
+            p=p
           ),
           future.chunk.size=50
         )
@@ -242,9 +241,10 @@ ITDRMS.fit = function(
     pb <- txtProgressBar(min=0, max=nrow(ratio_data_conds), style=3, initial="")
     cat("Fitting curves with log-logistic function... \n")
     
-    conds_fitresults_fits <- progress_lapply(1:nrow(ratio_data_conds), 
-                                        function(xx) ITDRMS_sub.fit(data=ratio_data_conds,i=xx,outlier.removal=outlier.removal),
-                                        pb)
+    conds_fitresults_fits <- progress_lapply(1:nrow(ratio_data_conds), function(xx) {
+      ITDRMS_sub.fit(data=ratio_data_conds,i=xx,outlier.removal=outlier.removal, max.out=max.out)
+      print(xx) },
+      pb)
   } else {
 
     handlers(global = TRUE)
@@ -264,7 +264,8 @@ ITDRMS.fit = function(
                 ITDRMS_sub.fit(
                   data = ratio_data_conds,
                   i = x,
-                  outlier.removal = outlier.removal
+                  outlier.removal = outlier.removal,
+                  max.out=max.out
                 )
               },
               error = function(e) {
@@ -279,7 +280,8 @@ ITDRMS.fit = function(
           ratio_data_conds = ratio_data_conds,
           outlier.removal = outlier.removal,
           fit_sigmoid=fit_sigmoid,
-          p=p
+          p=p,
+          max.out=max.out
         ),
         future.chunk.size=50
       )
