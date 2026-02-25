@@ -101,12 +101,10 @@ ITDRMS.hit <- function(
     rename_with(~ paste0("ratio_",.x),all_of(ratio_columns)) %>% # organizing the data to longer format
     pivot_longer(cols=!c(id,condition,R2), names_sep="_", names_to=c(".value","Dose")) %>%
     filter(Dose!=0) %>% # removing zero-dose values. They were only used for alignmenet
-    # mutate(conf.int=ifelse(is.nan(conf.int), 0,conf.int)) %>% # I am not convinced that replacing with 0 is best. removing is better. Anyways it is mutliplied.
-    # filter(!is.na(conf.int)) %>%
-    filter(!is.na(conf.int)&!is.nan(conf.int)&!conf.int==0) %>%
-    # mutate(conf.int=ifelse(is.na(conf.int)&(!is.nan(ratio)), ratio/2,conf.int)) %>%
-     
-    # filter(if_any(everything(), ~ !is.nan(.x))) %>% # removal of rows with removed outliers (NaN)
+    mutate(conf.int = ifelse(condition == controlcond & is.nan(conf.int), 0, conf.int)) %>%
+    filter(!is.na(conf.int) & !is.nan(conf.int) & (condition == controlcond | conf.int != 0)) %>%
+    # filter(!is.na(conf.int)&!is.nan(conf.int)&!conf.int==0) %>%
+
     pivot_wider(id_cols=c(id,Dose), names_from=condition, values_from=c(ratio,conf.int,fit,R2), names_sep="_") %>% # back to wide
     mutate(across(starts_with("fit_"), ~ .x - !!sym(paste0("ratio_",controlcond)), .names = "sub.{col}" )) %>% # subtract 37 ratio from higher-temp ratios
     mutate(across(starts_with("conf.int_"), ~ .x + !!sym(paste0("conf.int_",controlcond)), .names="sum.{col}")) %>% # sum 37 conf. interval and each higher-temp conf. interval
