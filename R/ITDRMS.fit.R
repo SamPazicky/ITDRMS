@@ -200,7 +200,7 @@ ITDRMS.fit = function(
                   ITDRMS_sub.fit(
                     data = ratio_data_control,
                     i = x,
-                    outlier.removal = outlier.removal,
+                    outlier.removal = FALSE,
                     max.out=max.out
                   )
                 },
@@ -214,7 +214,7 @@ ITDRMS.fit = function(
           future.globals = list(
             ITDRMS_sub.fit = ITDRMS_sub.fit,
             ratio_data_control = ratio_data_control,
-            outlier.removal = outlier.removal,
+            outlier.removal = FALSE,
             fit_sigmoid=fit_sigmoid,
             p=p,
             max.out=max.out
