@@ -75,7 +75,8 @@ ITDRMS.load=function(datafolder="datafiles",
       ab_cols <- newfile %>%
         dplyr::select(contains("Abundance")) %>% 
         dplyr::select(!contains("CV")) %>%
-        dplyr::select(!contains("Ratio")) %>% 
+        dplyr::select(!contains("Ratio")) %>%
+        dplyr::select(!contains("Count")) %>%
         names()
       
       # find last column before all abundance and ratio columns
