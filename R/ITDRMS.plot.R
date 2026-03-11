@@ -312,7 +312,7 @@ ITDRMS.plot <- function(
                                                  plot.title=element_text(hjust=0.5, size=8),
                                                  axis.title=element_blank(),
                                                  legend.position="none"
-    )   
+    ))
   })
 
                     
