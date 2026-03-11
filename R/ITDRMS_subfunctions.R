@@ -152,7 +152,7 @@ fit_MC <- function(data) {
 }
 
 #` progress_lapply
-progress_lapply <- function(X, FUN, pb, ...) {
+progress_lapply <- function(X, FUN, pb, silent=TRUE, ...) {
   on.exit({
     sink(NULL, type = "message")
     if(exists("zz")) {
@@ -160,8 +160,12 @@ progress_lapply <- function(X, FUN, pb, ...) {
     }
   })
   result <- vector("list", length(X))
-  zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
-  sink(zz, type="message")
+  
+  if(silent) {
+    zz <- file(tempfile(pattern = "fit_", fileext = ".txt"), open = "wt")
+    sink(zz, type="message")
+  }
+  
   for (i in seq_along(X)) {
     result[[i]] <- FUN(X[[i]], ...)  # Apply function
     setTxtProgressBar(pb, i)  # Update progress
@@ -301,4 +305,37 @@ clean.fit <- function(fit)
     cfit <- NULL
   }
   return(cfit)
+}
+
+#` render_page
+render_page <- function(page_plots, pdf.folder, pdf.name, y_lab, cond_legend, layout, plots_per_page) {
+  # require(Cairo)
+  require(patchwork)
+  require(ggplot2)
+  
+  page_index <- names(page_plots)[1]
+  temp_file <- file.path(pdf.folder, paste0(pdf.name, "_page_", page_index, ".pdf"))
+  if(length(page_plots)<plots_per_page) {
+    emptyplot <- ggplot() +  theme(panel.border=element_blank(), panel.background = element_rect(fill="white"))
+    epno <- plots_per_page-length(page_plots)
+    eplist=list()
+    for (ep in 1:epno) {
+      eplist[[ep]]=emptyplot
+    }
+    page_plots <- c(page_plots,eplist)
+  }
+  pdf(temp_file, width = 10, height = 14.5)
+  print(
+    wrap_elements(y_lab) +
+      wrap_plots(page_plots, ncol = 4, nrow = 5) +
+      wrap_elements(cond_legend)  +
+      patchwork::plot_layout(
+        design = layout,
+        heights = c(1, 0.05),
+        widths = c(0.1,1)
+      )
+  )
+  dev.off()
+  message("devoff")
+  return(temp_file)
 }
