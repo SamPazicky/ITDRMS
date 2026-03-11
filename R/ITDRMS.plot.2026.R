@@ -25,6 +25,7 @@
 #' @import patchwork
 #' @import future
 #' @import future.apply
+#' @importFrom qpdf pdf_combine
 #' 
 #' @return A list of all plots.
 #' @examples 
@@ -244,14 +245,10 @@ ITDRMS.plot2026 <- function(
       plots <- future_lapply(
         merged,
         function(mergeddata) {
-          result <- plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete)
+          result <- ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete)
           pr() # update progress
           return(result)
         },
-        # future.globals = list(
-        #   pr=pr,fakedata=fakedata,print.stats=print.stats,hits=hits,plot.ITDRcurve=plot.ITDRcurve,ratio_columns=ratio_columns,
-        #   fits=fits,predict_clean=predict_clean,conditions=conditions,scale=scale,pallete=pallete
-        # ),
         future.scheduling=1
       )
     })
