@@ -315,9 +315,6 @@ ITDRMS.plot <- function(
     ))
   })
 
-                    
-  )
-
   if(!is.null(calc.POS)) {
     for(p in proteins) {
       plots[[p]] <- plots[[p]] + 
