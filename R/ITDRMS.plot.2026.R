@@ -68,6 +68,10 @@ ITDRMS.plot2026 <- function(
 ) 
 {
   
+  on.exit({
+    closeAllConnections()
+  })
+   
   customPlot <- list(
     theme_bw(base_size = 12),
     theme(panel.grid.major=element_blank(),
@@ -223,7 +227,7 @@ ITDRMS.plot2026 <- function(
   # plotelems <- readRDS("inst/extdata/plotelems.RDS")
   plotelems <- system.file("extdata", "plotelems.RDS", package = "ITDRMS")
   plotelems <- readRDS(plotelems)
-  print(names(plotelems))
+  
   cat("Curve plotting in progress...\n")
   if(ncores==1) {
     pb <- txtProgressBar(min=0, max=length(merged), style=3, initial="")
@@ -240,7 +244,7 @@ ITDRMS.plot2026 <- function(
       plots <- future_lapply(
         merged,
         function(mergeddata) {
-          result <- ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete)
+          result <- plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete)
           pr() # update progress
           return(result)
         },
@@ -254,12 +258,11 @@ ITDRMS.plot2026 <- function(
     plan(sequential)
   }
   
-  #add back plot elements and set y limits
+  # add back plot elements and set y limits
   plots <- lapply(plots, function(x) {
     for (nm in names(plotelems)) {
       dmin <- min(x$data$Fraction_soluble, na.rm = TRUE) - 0.5
       dmax <- max(x$data$Fraction_soluble, na.rm = TRUE) + 0.5
-      
       x[[nm]] <- plotelems[[nm]]
     }
     x

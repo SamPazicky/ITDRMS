@@ -67,8 +67,6 @@ plot.ITDRcurve <- function(mergeddata, fakedata,print.stats,hits,ratio_columns,c
     subtitle <- paste0("R2=", hitR2, " p.adj=", hitp.val)
   }
   
-  cur_data <- cur_data
-  
   plot <- ggplot(data = cur_data) +
     geom_point(
                aes(x = log10(Dose), y = Fraction_soluble, color = condition),
@@ -90,7 +88,6 @@ plot.ITDRcurve <- function(mergeddata, fakedata,print.stats,hits,ratio_columns,c
   
   plot$plot_env <- NULL
   plot$mapping <- NULL
-  # plot$data <- NULL
   plot$theme <- NULL
   plot$scales <- NULL
   plot$guides <- NULL
