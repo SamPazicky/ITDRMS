@@ -54,7 +54,7 @@ ITDRMS.plot2026 <- function(
     fits=NULL,
     hits=NULL,
     calc.POS=NULL,
-    POS.source=Pf_meltcurve_lysate,
+    POS.source=ITDRMS::Pf_meltcurve_lysate,
     scale=FALSE,
     print.stats=FALSE,
     color.scheme="rainbow",
