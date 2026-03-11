@@ -307,12 +307,14 @@ ITDRMS.plot <- function(
   
   cond_legend <- get_legend(legendplot)
   
+  suppressMessages({
+    plots <- lapply(plots, function(x) x + theme(axis.text=element_text(size=6),
+                                                 plot.title=element_text(hjust=0.5, size=8),
+                                                 axis.title=element_blank(),
+                                                 legend.position="none"
+    )   
+  })
 
-  plots <- lapply(plots, function(x) x + theme(axis.text=element_text(size=6),
-                                               plot.title=element_text(hjust=0.5, size=8),
-                                               axis.title=element_blank(),
-                                               legend.position="none"
-                                               )
                     
   )
 
@@ -361,14 +363,14 @@ ITDRMS.plot <- function(
       pdf_pages <- future_map(
         plot_chunks,
         function(pc) {
-          result <- ITDRMS:::render_page(
+          result <- render_page(
             pc, pdf.folder, pdf.name, y_lab, cond_legend, layout, plots_per_page
           )
           pr()
           result
         },
         .options = furrr_options(
-          packages = c("patchwork", "ggplot2"),
+          packages = c("patchwork", "ggplot2","ITDRMS"),
           globals = c("pdf.folder", "pdf.name", "y_lab", "cond_legend", "layout", "plots_per_page","pr"),
           chunk_size=5
         )
