@@ -9,7 +9,7 @@ ITDRMS.plot(
   fits = NULL,
   hits = NULL,
   calc.POS = NULL,
-  POS.source = Pf_meltcurve_lysate,
+  POS.source = ITDRMS::Pf_meltcurve_lysate,
   scale = FALSE,
   print.stats = FALSE,
   color.scheme = "rainbow",
@@ -17,7 +17,10 @@ ITDRMS.plot(
   fit.length = 100,
   pdf.export = FALSE,
   pdf.folder = ".",
-  pdf.name = "ITDR_curves"
+  pdf.name = "ITDR_curves",
+  plots_per_page = 20,
+  ncores = 1,
+  ram = 4
 )
 }
 \arguments{
@@ -47,6 +50,12 @@ be comparable across proteins!}
 \item{pdf.folder}{Character string: Name of the directory for pdf export. Default is the working directory.}
 
 \item{pdf.name}{Character string: Name of tthe exported pdf file. Default is 'ITDR_curves'}
+
+\item{plots_per_page}{Integer: How many plots on one pdf page? Default is 20.}
+
+\item{ncores}{Integer: How many cores to use for fitting. Default is 1.}
+
+\item{ram}{Integer: Size allowed for parallel computing in GB.}
 }
 \value{
 A list of all plots.
@@ -55,5 +64,5 @@ A list of all plots.
 Identifies hits from fitted mass spec data.
 }
 \examples{
-data_plotted <- ITDRMS.plot(data_fitted$data, data_fitted$fits)
+data_plotted <- ITDRMS.plot(data_fitted$data, data_fitted$fits, label.col="label",ncores=4)
 }

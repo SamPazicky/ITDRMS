@@ -72,7 +72,7 @@ ITDRMS_sub.fit = function(
     } else {
       tryfixedslope=TRUE
     }
-    sigmoid <- try(fit_sigmoid(cur_fit_data,tryfixedslope=tryfixedslope),silent=TRUE)
+    sigmoid <- try(ITDRMS:::fit_sigmoid(cur_fit_data,tryfixedslope=tryfixedslope),silent=TRUE)
     if(!class(sigmoid)=="list"&!class(sigmoid)=="try-error"&any(!is.na(sigmoid))) {
       R2sigmoid <- 1 - sum((residuals(sigmoid)^2))/sum((y-mean(y))^2)
       R2sigmoid_orig <- R2sigmoid
@@ -83,7 +83,7 @@ ITDRMS_sub.fit = function(
           x_out <- x[-out]
           y_out <- y[-out]
           out_data <- data.frame(x=x_out,y=y_out)
-          sigmoids_out[[out]] <- fit_sigmoid(out_data)
+          sigmoids_out[[out]] <- ITDRMS:::fit_sigmoid(out_data)
           if(class(sigmoids_out[[out]])=="list"|any(is.na(sigmoids_out[[out]]))) {
             outR2s[out] <- NA
           } else {

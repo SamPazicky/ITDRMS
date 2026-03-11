@@ -1,3 +1,4 @@
+#` @keywords internal
 plot.ITDRcurve <- function(mergeddata, fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete) {
   
   suppressPackageStartupMessages({
