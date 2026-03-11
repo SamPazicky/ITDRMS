@@ -370,7 +370,7 @@ ITDRMS.plot2026 <- function(
 
   suppressMessages(file.remove(unlist(pdf_pages)))
   cat("Final PDF saved to: ", output_pdf,"\n")
- 
+  
   return(output)
 }
 
