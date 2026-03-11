@@ -232,7 +232,7 @@ ITDRMS.plot2026 <- function(
   cat("Curve plotting in progress...\n")
   if(ncores==1) {
     pb <- txtProgressBar(min=0, max=length(merged), style=3, initial="")
-    plots <- progress_lapply(merged, function(mergeddata) ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,color.scheme),pb)
+    plots <- progress_lapply(merged, function(mergeddata) ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
     close(pb)
     names(plots) <- names(merged)
   } else {
@@ -246,10 +246,9 @@ ITDRMS.plot2026 <- function(
         merged,
         function(mergeddata) {
           result <- ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete)
-          pr() # update progress
+          pr()
           return(result)
-        },
-        future.scheduling=1
+        }
       )
     })
     plan(sequential)
@@ -258,8 +257,6 @@ ITDRMS.plot2026 <- function(
   # add back plot elements and set y limits
   plots <- lapply(plots, function(x) {
     for (nm in names(plotelems)) {
-      dmin <- min(x$data$Fraction_soluble, na.rm = TRUE) - 0.5
-      dmax <- max(x$data$Fraction_soluble, na.rm = TRUE) + 0.5
       x[[nm]] <- plotelems[[nm]]
     }
     x
@@ -354,11 +351,10 @@ ITDRMS.plot2026 <- function(
     plan(multisession,workers=ncores)
     # Wrap your loop with progressr
     with_progress({
-      p <- progressor(along = plot_chunks)  # create progressor
-      
+      pr <- progressor(along = plot_chunks)  # create progressor
       pdf_pages <- future_lapply(plot_chunks, function(pc) {
         result <- ITDRMS:::render_page(pc, pdf.folder, pdf.name, y_lab, cond_legend, layout, plots_per_page)
-        p()  # increment progress
+        pr() 
         return(result)
       })
     })
@@ -372,8 +368,8 @@ ITDRMS.plot2026 <- function(
   output_pdf <- file.path(pdf.folder, paste0(pdf.name, ".pdf"))
   qpdf::pdf_combine(input = pdf_pages, output = output_pdf)
 
-  file.remove(unlist(pdf_pages))
-  message("Final PDF saved to: ", output_pdf)
+  suppressMessages(file.remove(unlist(pdf_pages)))
+  cat("Final PDF saved to: ", output_pdf,"\n")
  
   return(output)
 }
