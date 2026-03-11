@@ -73,6 +73,10 @@ ITDRMS.plot2026 <- function(
     closeAllConnections()
   })
    
+  
+  invisible(force(pdf.folder))
+  invisible(force(pdf.name))
+
   customPlot <- list(
     theme_bw(base_size = 12),
     theme(panel.grid.major=element_blank(),
