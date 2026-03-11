@@ -1,4 +1,4 @@
-#' ITDRMS.plot
+#' ITDRMS.plot2026
 #'
 #' Identifies hits from fitted mass spec data.
 #' @param data Data frame: Scaled data with removed outliers and fitting statistics, ideally $data element from ITDRMS.fit output.
@@ -195,8 +195,7 @@ ITDRMS.plot2026 <- function(
   }
   
   ### DESIGN SETTINGS ###
-  
- 
+
   topconc <- max(as.numeric(ratio_columns))
   divfactor <- mynthroot(topconc/min(as.numeric(ratio_columns)[-which(ratio_columns=="0")]),(fit.length-1))
   fakedata <- data.frame("x"=topconc/divfactor^(0:(fit.length-1)) )
@@ -223,7 +222,7 @@ ITDRMS.plot2026 <- function(
   plots <- list()
   # plotelems <- readRDS("inst/extdata/plotelems.RDS")
   plotelems <- system.file("extdata", "plotelems.RDS", package = "ITDRMS")
-  
+  print(names(plotelems))
   cat("Curve plotting in progress...\n")
   if(ncores==1) {
     pb <- txtProgressBar(min=0, max=length(merged), style=3, initial="")
@@ -240,7 +239,7 @@ ITDRMS.plot2026 <- function(
       plots <- future_lapply(
         merged,
         function(mergeddata) {
-          result <-plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete)
+          result <- ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete)
           pr() # update progress
           return(result)
         },
@@ -257,13 +256,20 @@ ITDRMS.plot2026 <- function(
   #add back plot elements and set y limits
   plots <- lapply(plots, function(x) {
     for (nm in names(plotelems)) {
+      dmin <- min(x$data$Fraction_soluble, na.rm = TRUE) - 0.5
+      dmax <- max(x$data$Fraction_soluble, na.rm = TRUE) + 0.5
+      
       x[[nm]] <- plotelems[[nm]]
     }
-    dmin <- min(x$data$Fraction_soluble, na.rm=TRUE) - 0.5
-    dmax <- max(x$data$Fraction_soluble, na.rm=TRUE) + 0.5
-    x$scales$scales[[3]]$limits <- c(min(0,dmin),max(2,dmax))
-    x 
+    x
   })
+  
+  for(i in names(plots)) {
+    plots[[i]] <- ggplot2:::plot_clone(plots[[i]])
+    dmin <- min(plots[[i]]$data$Fraction_soluble, na.rm = TRUE) - 0.5
+    dmax <- max(plots[[i]]$data$Fraction_soluble, na.rm = TRUE) + 0.5
+    plots[[i]]$scales$scales[[3]]$limits <- c(min(0,dmin),max(2,dmax))
+  }
 
   output <- plots
   
