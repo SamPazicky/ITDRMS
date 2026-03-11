@@ -15,24 +15,28 @@
 #' @param pdf.export Logical: If TRUE (default), a pdf with all plots will be exported.
 #' @param pdf.folder Character string: Name of the directory for pdf export. Default is the working directory.
 #' @param pdf.name Character string: Name of tthe exported pdf file. Default is 'ITDR_curves'
-#'
+#' @param plots_per_page Integer: How many plots on one pdf page? Default is 20.
+#' @param ncores Integer: How many cores to use for fitting. Default is 1.
+#' @param ram Integer: Size allowed for parallel computing in GB.
+#' 
 #' @import tidyverse
 #' @import magrittr
 #' @importFrom gtools mixedsort
 #' @import patchwork
+#' @import furrr
+#' @importFrom qpdf pdf_combine
 #' 
 #' @return A list of all plots.
 #' @examples 
-#' data_plotted <- ITDRMS.plot(data_fitted$data, data_fitted$fits)
+#' data_plotted <- ITDRMS.plot(data_fitted$data, data_fitted$fits, label.col="label",ncores=4)
 #' @export
-
 
 ITDRMS.plot <- function(
     data=NULL,
     fits=NULL,
     hits=NULL,
     calc.POS=NULL,
-    POS.source=Pf_meltcurve_lysate,
+    POS.source=ITDRMS::Pf_meltcurve_lysate,
     scale=FALSE,
     print.stats=FALSE,
     color.scheme="rainbow",
@@ -40,10 +44,22 @@ ITDRMS.plot <- function(
     fit.length=100,
     pdf.export=FALSE,
     pdf.folder=".",
-    pdf.name="ITDR_curves"
-    ) 
+    pdf.name="ITDR_curves",
+    plots_per_page=20,
+    ncores=1,
+    ram=4
+) 
 {
   
+  on.exit({
+    dev.off()
+    closeAllConnections()
+  })
+  
+  # forcing evaluation of parameters directly used in the future loop.
+  invisible(force(pdf.folder))
+  invisible(force(pdf.name))
+
   customPlot <- list(
     theme_bw(base_size = 12),
     theme(panel.grid.major=element_blank(),
@@ -51,6 +67,25 @@ ITDRMS.plot <- function(
           plot.margin=ggplot2::margin(5,5,5,5, "pt")
     )
   )
+  
+  data <- data %>%
+    mutate(condition=factor(condition,levels=gtools::mixedsort(unique(condition))))
+  
+  if(color.scheme=="rainbow") {
+    pallete <- rainbow(length(levels(data$condition)))
+  } else if(color.scheme=="distinct") {
+    pallete <- Pal25 <- c(
+      "dodgerblue2", "#E31A1C", "green4","#6A3D9A", "#FF7F00", "black", "gold1", "skyblue2", "#FB9A99", "palegreen2",
+      "#CAB2D6", "#FDBF6F", "gray70", "khaki2", "maroon", "orchid1", "deeppink1", "blue1", "steelblue4",
+      "darkturquoise", "green1", "yellow4", "yellow3", "darkorange4", "brown"
+    ) %>% .[1:length(levels(data$condition))]
+  } else if (length(color.scheme)>=length(levels(data$condition))) {
+    pallete <- color.scheme
+    color.scheme <- "distinct"
+  } else {
+    stop("color.scheme must be 'rainbow', 'distinct' or a vector with color names or color codes. The vector must be at least as long as number of temperatures used in the assay")
+  }
+  names(pallete) <- levels(data$condition)
   
   if(print.stats&is.null(hits)) {
     stop("If you want to print stats, include data.frame in argument 'hits'.")
@@ -74,7 +109,7 @@ ITDRMS.plot <- function(
     for(i in 1:nrow(data)) {
       plaus_table <- ITDRMS.POS(protein=data[i,"id"], source.data=POS.source, temperatures=calc.POS) %>%
         mutate(across(everything(), as.numeric))
-
+      
       type=all_hits[i,"Slope"]
       if(is.na(type)) {
         selection="Stabilization.plausibility"
@@ -85,7 +120,7 @@ ITDRMS.plot <- function(
           selection="Destabilization.plausibility"
         }
       }
-     
+      
       
       char_table <- bind_rows(char_table,
                               plaus_table %>% dplyr::select(Temperature, all_of(selection)) %>%
@@ -95,7 +130,7 @@ ITDRMS.plot <- function(
       )
     }
     
-
+    
     POS_plots <- list()
     if(length(char_table)>0) {
       all_hits <- bind_cols(all_hits,char_table)
@@ -144,180 +179,143 @@ ITDRMS.plot <- function(
       rename(label=!!sym(label.col)) %>%
       dplyr::select(id,condition,label,all_of(ratio_columns))
   }
- 
-  conditions <- data$condition %>% unique() %>% gtools::mixedsort()
+  
+  conditions <- levels(data$condition)
   
   if(is.na(pdf.name)) {
     pdf.name="ITDRcurves"
   }
   
   ### DESIGN SETTINGS ###
-  
-  # color settings
-  
-  if(color.scheme=="rainbow") {
-    pallete <- rainbow(length(unique(data$condition)))
-  } else if(color.scheme=="distinct") {
-    pallete <- Pal25 <- c(
-      "dodgerblue2", "#E31A1C", "green4","#6A3D9A", "#FF7F00", "black", "gold1", "skyblue2", "#FB9A99", "palegreen2",
-      "#CAB2D6", "#FDBF6F", "gray70", "khaki2", "maroon", "orchid1", "deeppink1", "blue1", "steelblue4",
-      "darkturquoise", "green1", "yellow4", "yellow3", "darkorange4", "brown"
-    )
-  } else if (length(color.scheme)>=length(unique(data$condition))) {
-    pallete <- color.scheme
-    color.scheme <- "distinct"
-  } else {
-    stop("color.scheme must be 'rainbow', 'distinct' or a vector with color names or color codes. The vector must be at least as long as number of temperatures used in the assay")
-  }
-  
-  # scale settings
-  ticks <- 10^(-10:10)
-  ticks <- ticks[c(min(which(ticks>min(as.numeric(ratio_columns[-1])))-1),which(ticks>min(as.numeric(ratio_columns[-1]))))]
-  ticks <- ticks[c(which(ticks<max(as.numeric(ratio_columns))),max(which(ticks<max(as.numeric(ratio_columns))))+1)]
-  ticks <- log10(ticks)
-  
-  # points and lines
-  pointshapes<-c(16,15,17,18,8,4,3,9,10,11,12,13,14)
-  linetypes <- c("solid","dashed","dotted")
-  
 
-  
   topconc <- max(as.numeric(ratio_columns))
   divfactor <- mynthroot(topconc/min(as.numeric(ratio_columns)[-which(ratio_columns=="0")]),(fit.length-1))
   fakedata <- data.frame("x"=topconc/divfactor^(0:(fit.length-1)) )
   
   proteins <- unique(data$id)
-  plots <- list()
-  
-  
-  message("Curve plotting in progress...")
-  pb <- txtProgressBar(min=0, max=length(proteins), style=3, initial="")
-  for(p in proteins) {
-    
-    cur_data <- ratio_data %>% 
-      filter(id==p) %>%
-      mutate(condition=factor(condition,levels=gtools::mixedsort(unique(ratio_data$condition)))) %>%
-      pivot_longer(cols=all_of(ratio_columns), names_to="Dose", values_to="Fraction_soluble",names_transform=list(Dose=as.double))
-    label = str_trunc(unique(cur_data$label),35)
-    
-    cur_fakedata <- fakedata %>% setNames("Dose")
-    for(T in unique(cur_data$condition)) {
-      Tfit <- fits[[paste0(p,";",T)]]
-      if(!is.null(Tfit)) {
-        cur_fakedata <- bind_cols(cur_fakedata,
-                                  predict_clean(fits[[paste0(p,";",T)]], fakedata)%>%as.data.frame()%>%setNames(T)
-        )
+
+  # Split fits by accession
+  accessions <- sub(";.*$", "", names(fits))
+  fits_split <- split(fits, accessions)
+  datafits <- ratio_data %>%
+    as.data.table() %>%
+    split(by="id")
+  all_accessions <- names(datafits)
+  merged <- setNames(
+    Map(function(acc) list(
+      data = datafits[[acc]],    # NULL if missing
+      fit  = fits_split[[acc]]   # NULL if missing
+    ),
+    all_accessions
+    ),
+    all_accessions
+  )
+  merged <- merged %>%
+    # Remove top-level elements where $fit becomes empty
+    keep(~ {
+      if (!is.null(.x$fit)) {
+        # Remove NULLs inside $fit
+        .x$fit <- discard(.x$fit, is.null)
       }
-    }
-    
-    if(length(names(cur_fakedata))==1) {
-      next
-    }
-    cur_fakedata <- cur_fakedata %>% 
-      pivot_longer(cols=!Dose, names_to="condition", values_to="Fraction_soluble")
-    
-    cur_conditions <- sapply(cur_data$condition%>%unique()%>%gtools::mixedsort(), function(x) grep(x,conditions)) %>% unname()
-    wishmin=0
-    wishmax=2
-    if(scale) {
-      
-      scmin <- min(cur_fakedata$Fraction_soluble,na.rm=TRUE)
-      scmax <- max(cur_fakedata$Fraction_soluble,na.rm=TRUE)
-      
-      cur_fakedata <- cur_fakedata %>%
-        mutate(Fraction_soluble=rescale(Fraction_soluble,from=c(scmin,scmax), to=c(0,1)))
-      
-      cur_data <- cur_data %>%
-        mutate(Fraction_soluble=rescale(Fraction_soluble,from=c(scmin,scmax), to=c(0,1)))
-    }
-    
-    miny <- min(wishmin,min(cur_data$Fraction_soluble, na.rm=TRUE))
-    maxy <- max(wishmax,max(cur_data$Fraction_soluble, na.rm=TRUE))
-    
-    plots[[p]] <- ggplot() +
-      geom_point(data=cur_data, aes(x=log10(Dose),y=Fraction_soluble,color=condition),show.legend=TRUE) +
-      geom_line(data=cur_fakedata, aes(x=log10(Dose), y=Fraction_soluble,color=condition),show.legend=TRUE) +
-      scale_color_manual(values=pallete, drop=FALSE) +
-      scale_x_continuous(breaks=ticks,name="log(Dose)") +
-      scale_y_continuous(limits=c(miny,maxy), name="Fraction soluble") +
-      theme_bw(base_size = 12) +
-      theme(panel.grid.major=element_blank(),
-            panel.grid.minor=element_blank(),
-            # legend.position=legend.position,
-            plot.margin=grid::unit(c(5,5,5,5), "mm"),
-            plot.title=element_text(size=8, hjust=0.5)
-      )
-    
-    if(!print.stats) {
-      plots[[p]] <- plots[[p]] +
-        ggtitle(paste0(p,"\n",label))
-    } else {
-      hitR2=round(hits%>%filter(id==p)%>%pull(R2),2)
-      hitp.val=round(hits%>%filter(id==p)%>%pull(p.adj),2)
-      subtitle=paste0("R2=",hitR2," p.adj=",hitp.val)
-      plots[[p]] <- plots[[p]] +
-        ggtitle(paste0(p,"\n",label),
-                subtitle=subtitle)
-    }
-    
-    setTxtProgressBar(pb, which(proteins==p))
-  }
-  close(pb)
+      # Keep only if $fit exists and is not empty
+      !is.null(.x$fit) && length(.x$fit) > 0
+    })
   
+  plots <- list()
+  # plotelems <- readRDS("inst/extdata/plotelems.RDS")
+  plotelems <- system.file("extdata", "plotelems.RDS", package = "ITDRMS")
+  plotelems <- readRDS(plotelems)
+  
+  cat("Curve plotting in progress...\n")
+  if(ncores==1) {
+    pb <- txtProgressBar(min=0, max=length(merged), style=3, initial="")
+    plots <- progress_lapply(merged, function(mergeddata) ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
+    close(pb)
+    names(plots) <- names(merged)
+  } else {
+    
+    plan(multisession, workers = ncores)
+    handlers("txtprogressbar")
+    
+    with_progress({
+      pr <- progressor(steps = length(merged))  
+      
+      plots <- future_map(
+        merged,
+        function(mergeddata) {
+          pr()  
+          ITDRMS:::plot.ITDRcurve(
+            mergeddata, fakedata, print.stats, hits,
+            ratio_columns, conditions, scale, pallete
+          )
+        },
+        .options = furrr_options(
+          packages = c("ggplot2"),
+          globals = c("fakedata", "print.stats", "hits", "ratio_columns", "conditions", "scale", "pallete","pr")
+        )
+      )
+    })
+    plan(sequential)
+  }
+  
+  # add back plot elements and set y limits
+  plots <- lapply(plots, function(x) {
+    for (nm in names(plotelems)) {
+      x[[nm]] <- plotelems[[nm]]
+    }
+    x
+  })
+  
+  for(i in names(plots)) {
+    plots[[i]] <- ggplot2:::plot_clone(plots[[i]])
+    dmin <- min(plots[[i]]$data$Fraction_soluble, na.rm = TRUE) - 0.5
+    dmax <- max(plots[[i]]$data$Fraction_soluble, na.rm = TRUE) + 0.5
+    plots[[i]]$scales$scales[[3]]$limits <- c(min(0,dmin),max(2,dmax))
+  }
+
   output <- plots
   
-  if(pdf.export) {
-    
-    # prepare legend
-    
-    realcondNo <- length(unique(data$condition))
-    realrepNo <- length(unique(data$Replicate))
-    legenddata <- data.frame("Dose"=rep(ratio_columns,realcondNo*realrepNo),
-                           "condition"=rep(conditions,realrepNo,each=length(ratio_columns)),
-                           "Replicate"=rep(realrepNo,each=length(ratio_columns)*realcondNo)
-    )
-    
-    legenddata$value <- sample(0:1000000,size=nrow(legenddata))/1000000
-    legenddata$condition <- factor(legenddata$condition,levels=gtools::mixedsort(unique(legenddata$condition)))
-    
-    legendplot <- ggplot(legenddata, aes(x=Dose,y=value)) +
-      geom_point(aes(color=condition)) +
-      geom_line(aes(color=condition)) +
-      customPlot +
-      scale_linetype_manual(name="Replicate",values=linetypes) +
-      guides(color=guide_legend(title.position="top",title.hjust=0.5,nrow=1, ncol=length(conditions))) +
-      scale_color_manual(name="Dose",values=pallete)
-    
-    cond_legend <- get_legend(legendplot)
-    
-    
-    legendplot <- ggplot(legenddata, aes(x=Dose,y=value)) +
-      geom_point(aes(shape=as.character(Replicate))) +
-      geom_line(aes(linetype=as.character(Replicate))) +
-      customPlot +
-      scale_shape_manual(name="Replicate",values=pointshapes) +
-      scale_linetype_manual(name="Replicate",values=linetypes) +
-      guides(shape=guide_legend(nrow=realrepNo, ncol=1)) +
-      guides(linetype=guide_legend(nrow=realrepNo, ncol=1)) +
-      scale_color_manual(name="Dose",values=pallete)
-  
-    rep_legend <- get_legend(legendplot)
-    rep_legend[["heights"]][1] <- unit(20.0000,"cm")
+  if(!pdf.export) {
+    return(output)
   }
-  
-  plots <- lapply(plots, function(x) x + theme(axis.text=element_text(size=6),
-                                               plot.title=element_text(hjust=0.5, size=8)
-                                               )
-  )
-  
+    
   cat("Saving pdf file. This may take several minutes, depending on the number of detected proteins...\n")
 
-  plots <- lapply(plots, function(x) x + 
-                    theme(axis.title=element_blank(),
-                          legend.title=element_blank()) + 
-                    guides(colour = guide_legend(nrow = 1)) 
-                  )
+  # points and lines
+  pointshapes<-c(16,15,17,18,8,4,3,9,10,11,12,13,14)
+  linetypes <- c("solid","dashed","dotted")
   
+  # prepare legend
+  
+  realcondNo <- length(unique(data$condition))
+  realrepNo <- length(unique(data$Replicate))
+  legenddata <- data.frame("Dose"=rep(ratio_columns,realcondNo*realrepNo),
+                           "condition"=rep(conditions,realrepNo,each=length(ratio_columns)),
+                           "Replicate"=rep(realrepNo,each=length(ratio_columns)*realcondNo)
+  )
+  
+  legenddata$value <- sample(0:1000000,size=nrow(legenddata))/1000000
+  legenddata$condition <- factor(legenddata$condition,levels=gtools::mixedsort(unique(legenddata$condition)))
+  
+  legendplot <- ggplot(legenddata, aes(x=Dose,y=value)) +
+    geom_point(aes(color=condition)) +
+    geom_line(aes(color=condition)) +
+    customPlot +
+    scale_linetype_manual(name="Replicate",values=linetypes) +
+    guides(color=guide_legend(title.position="top",title.hjust=0.5,nrow=1, ncol=length(conditions))) +
+    scale_color_manual(name="Dose (μM)",values=pallete)
+  
+  cond_legend <- get_legend(legendplot)
+  
+
+  plots <- lapply(plots, function(x) x + theme(axis.text=element_text(size=6),
+                                               plot.title=element_text(hjust=0.5, size=8),
+                                               axis.title=element_blank(),
+                                               legend.position="none"
+                                               )
+                    
+  )
+
   if(!is.null(calc.POS)) {
     for(p in proteins) {
       plots[[p]] <- plots[[p]] + 
@@ -327,13 +325,11 @@ ITDRMS.plot <- function(
     }
   }
   
-  output <- plots
-  
 
   layout <- "
-  ABBBBBBBBB
-  #CCCCCCCCC
-  #DDDDDDDDD"
+  AB
+  #C"
+  
   glob_lab <- "Fraction soluble"
   
   emptyplot <- ggplot() + customPlot + theme(panel.border=element_blank())
@@ -347,34 +343,50 @@ ITDRMS.plot <- function(
     coord_cartesian(clip = "off")+
     theme_void()
   
-  glob_lab <- expression("log(Dose, " ~ mu~"M)")
-  x_lab <- 
-    ggplot() + 
-    annotate(geom = "text", x = 1, y = 1, label = glob_lab, angle = 0) +
-    coord_cartesian(clip = "off")+
-    theme_void()
- 
-  pdf(paste0(pdf.folder,"/",pdf.name,".pdf"), width = 10 , height = 14.5)
-  for (page in 1:ceiling(length(plots)/20)) {
-    if(page==ceiling(length(plots)/20)) {
-      print(
-        patchwork::wrap_elements(y_lab) +
-          patchwork::wrap_plots(c(plots[((20*page)-19):(length(plots))],eplist[0:(20-length(((20*page)-19):(length(plots))))]), ncol = 4, nrow=5 ) + 
-          patchwork::wrap_elements(x_lab) +
-          patchwork::guide_area() + patchwork::plot_layout(guides = 'collect', design=layout, heights=c(1,0.1,0.1))
+  # Split plots into pages
+  plot_chunks <- split(plots, ceiling(seq_along(plots)/plots_per_page))
   
-      )
-    } else {
-      print(
-        patchwork::wrap_elements(y_lab) + 
-          patchwork::wrap_plots(plots[((20*page)-19):(20*page)], ncol = 4, nrow=5) + 
-          patchwork::wrap_elements(x_lab) +
-          patchwork::guide_area() + patchwork::plot_layout(guides = 'collect', design=layout, heights=c(1,0.1,0.1))
-        
-      )
-    }
-  }
-  dev.off()
+  if(ncores<=1) {
+    pb <- txtProgressBar(min=0, max=length(plot_chunks), style=3, initial="")
+    pdf_pages <- progress_lapply(plot_chunks, function(pc) ITDRMS:::render_page(pc, pdf.folder, pdf.name, y_lab, cond_legend, layout,plots_per_page),pb)
+    close(pb)
+  } else {
     
+    plan(multisession, workers = ncores)
+    handlers("txtprogressbar")  # or "progress" for RStudio
+    
+    with_progress({
+      pr <- progressor(steps = length(plot_chunks))
+      
+      pdf_pages <- future_map(
+        plot_chunks,
+        function(pc) {
+          result <- ITDRMS:::render_page(
+            pc, pdf.folder, pdf.name, y_lab, cond_legend, layout, plots_per_page
+          )
+          pr()
+          result
+        },
+        .options = furrr_options(
+          packages = c("patchwork", "ggplot2"),
+          globals = c("pdf.folder", "pdf.name", "y_lab", "cond_legend", "layout", "plots_per_page","pr"),
+          chunk_size=5
+        )
+      )
+    })
+    plan(sequential) 
+  }
+ 
+  # Remove any failed pages
+  pdf_pages <- pdf_pages[!sapply(pdf_pages, is.null)]
+  
+  # combine pdf pages
+  output_pdf <- file.path(pdf.folder, paste0(pdf.name, ".pdf"))
+  qpdf::pdf_combine(input = pdf_pages, output = output_pdf)
+
+  suppressMessages(file.remove(unlist(pdf_pages)))
+  cat("Final PDF saved to: ", output_pdf,"\n")
+  
   return(output)
 }
+

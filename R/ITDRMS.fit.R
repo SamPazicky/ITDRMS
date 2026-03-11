@@ -14,8 +14,7 @@
 #' @importFrom gtools mixedsort
 #' @import drc
 #' @import progressr
-#' @import future.apply
-#' @import future
+#' @import furrr
 #' 
 #' @return A list with three elements. $data is a data frame with the fitted data, $fits is a list with fit objects and $curvy_controls is a data frame with those proteins, that show dose-response behaviour at the lowest temperature (baseline has a sigmoid shape).
 #' @examples 
@@ -183,46 +182,45 @@ ITDRMS.fit = function(
                                                function(xx) ITDRMS_sub.fit(data=ratio_data_control,i=xx,outlier.removal=FALSE, max.out=max.out),
                                                pb)
     } else {
+      
       options(future.globals.maxSize = ram*1024^3)
-      handlers(global = TRUE)
-      handlers("progress")  # text progress bar
+      # handlers(global = TRUE)
+      handlers("progress")
       plan(multisession, workers = ncores)
       
       with_progress({
-        p <- progressor(along = 1:nrow(ratio_data_control))
-        control_fitresults_fits <- future_lapply(
+        pr <- progressor(steps = nrow(ratio_data_control))  # progressor for all rows
+        
+        control_fitresults_fits <- future_map(
           1:nrow(ratio_data_control),
           function(x) {
-            p() # update progress
+            pr()  # update progress per row
             suppressMessages({
               tryCatch(
                 {
-                  ITDRMS_sub.fit(
-                    data = ratio_data_control,
-                    i = x,
-                    outlier.removal = FALSE,
-                    max.out=max.out
-                  )
+                  ITDRMS:::ITDRMS_sub.fit(data = ratio_data_control, i = x, outlier.removal = FALSE, max.out = max.out)
                 },
                 error = function(e) {
-                  # Return a list indicating the error and which row failed
                   list(error = TRUE, message = e$message, i = x)
                 }
               )
             })
           },
-          future.globals = list(
-            ITDRMS_sub.fit = ITDRMS_sub.fit,
-            ratio_data_control = ratio_data_control,
-            outlier.removal = FALSE,
-            fit_sigmoid=fit_sigmoid,
-            p=p,
-            max.out=max.out
-          ),
-          future.scheduling=1
+          .options = furrr_options(
+            packages = c("tidyverse","data.table"),
+            globals = list(
+              ratio_data_control = ratio_data_control,
+              outlier.removal = FALSE,
+              fit_sigmoid = ITDRMS:::fit_sigmoid,
+              max.out = max.out,
+              pr=pr
+            ),
+            scheduling = 1,
+          )
         )
       })
       plan(sequential)
+      
       failed <- control_fitresults_fits %>% setNames(rownames(ratio_data_control)) %>% lapply(length) %>% stack() %>% setNames(c("n","name")) %>% rownames_to_column("no") %>% filter(n!=2) %>% pull(no) %>% as.numeric()
       if(length(failed)>0) {
         cat(paste0("Redoing ",length(failed)," failed fits.\n"))
@@ -253,47 +251,44 @@ ITDRMS.fit = function(
                                                                          outlier.removal=outlier.removal, max.out=max.out),
       pb)
   } else {
-
-    handlers(global = TRUE)
-    handlers("progress")  # text progress bar
     
+    handlers("progress")  # text progress bar
     plan(multisession, workers = ncores)
-
+    
+    # Run with progress
     with_progress({
-      p <- progressor(along = 1:nrow(ratio_data_conds))
-      conds_fitresults_fits <- future_lapply(
+      pr <- progressor(steps = nrow(ratio_data_conds))  
+      
+      conds_fitresults_fits <- future_map(
         1:nrow(ratio_data_conds),
         function(x) {
-          p() # update progress
+          pr() 
           suppressMessages({
             tryCatch(
               {
-                ITDRMS_sub.fit(
-                  data = ratio_data_conds,
-                  i = x,
-                  outlier.removal = outlier.removal,
-                  max.out=max.out
-                )
+                ITDRMS_sub.fit(data = ratio_data_conds,i = x,outlier.removal = outlier.removal,max.out = max.out)
               },
               error = function(e) {
-                # Return a list indicating the error and which row failed
                 list(error = TRUE, message = e$message, i = x)
               }
             )
           })
         },
-        future.globals = list(
-          ITDRMS_sub.fit = ITDRMS_sub.fit,
-          ratio_data_conds = ratio_data_conds,
-          outlier.removal = outlier.removal,
-          fit_sigmoid=fit_sigmoid,
-          p=p,
-          max.out=max.out
-        ),
-        future.scheduling=1
+        .options = furrr_options(
+          packages = c(),  # add packages used inside ITDRMS_sub.fit if any
+          globals = list(
+            ratio_data_conds = ratio_data_conds,
+            outlier.removal = outlier.removal,
+            fit_sigmoid = ITDRMS:::fit_sigmoid,
+            max.out = max.out,
+            pr=pr
+          ),
+          scheduling = 1
+        )
       )
     })
     plan(sequential)
+    
     failed <- conds_fitresults_fits %>% setNames(rownames(ratio_data_conds)) %>% lapply(length) %>% stack() %>% setNames(c("n","name")) %>% rownames_to_column("no") %>% filter(n!=2) %>% pull(no) %>% as.numeric()
     if(length(failed)>0) {
       cat(paste0("Redoing ",length(failed)," failed fits.\n"))
