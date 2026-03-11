@@ -356,7 +356,9 @@ ITDRMS.plot2026 <- function(
         result <- ITDRMS:::render_page(pc, pdf.folder, pdf.name, y_lab, cond_legend, layout, plots_per_page)
         pr() 
         return(result)
-      })
+      },
+      future.globals = c("pdf.folder", "pdf.name", "y_lab", "cond_legend", "layout", "plots_per_page","pr"),
+      future.packages = c("patchwork", "ggplot2"))
     })
     plan(sequential)
   }

@@ -309,9 +309,8 @@ clean.fit <- function(fit)
 
 #` render_page
 render_page <- function(page_plots, pdf.folder, pdf.name, y_lab, cond_legend, layout, plots_per_page) {
-  # require(Cairo)
-  require(patchwork)
-  require(ggplot2)
+  # require(patchwork)
+  # require(ggplot2)
   
   page_index <- names(page_plots)[1]
   temp_file <- file.path(pdf.folder, paste0(pdf.name, "_page_", page_index, ".pdf"))
@@ -336,6 +335,5 @@ render_page <- function(page_plots, pdf.folder, pdf.name, y_lab, cond_legend, la
       )
   )
   dev.off()
-  message("devoff")
   return(temp_file)
 }
