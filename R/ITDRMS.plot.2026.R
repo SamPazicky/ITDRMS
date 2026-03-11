@@ -28,7 +28,7 @@
 #' 
 #' @return A list of all plots.
 #' @examples 
-#' data_plotted <- ITDRMS.plot(data_fitted$data, data_fitted$fits)
+#' data_plotted <- ITDRMS.plot2026(data_fitted$data, data_fitted$fits)
 #' @export
 
 # data=ITDR_fitted$data
@@ -222,6 +222,7 @@ ITDRMS.plot2026 <- function(
   plots <- list()
   # plotelems <- readRDS("inst/extdata/plotelems.RDS")
   plotelems <- system.file("extdata", "plotelems.RDS", package = "ITDRMS")
+  plotelems <- readRDS(plotelems)
   print(names(plotelems))
   cat("Curve plotting in progress...\n")
   if(ncores==1) {
