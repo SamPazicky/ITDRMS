@@ -20,7 +20,7 @@ ITDRMS.plot(
   pdf.name = "ITDR_curves",
   plots_per_page = 20,
   ncores = 1,
-  ram = 4
+  ram = 8
 )
 }
 \arguments{

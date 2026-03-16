@@ -47,18 +47,22 @@ ITDRMS.plot <- function(
     pdf.name="ITDR_curves",
     plots_per_page=20,
     ncores=1,
-    ram=4
+    ram=8
 ) 
 {
   
   on.exit({
     dev.off()
     closeAllConnections()
+    if(exists("default_warning_handler")) {
+      options(warn = default_warning_handler)
+    }
   })
   
   # forcing evaluation of parameters directly used in the future loop.
   invisible(force(pdf.folder))
   invisible(force(pdf.name))
+  invisible(force(plots_per_page))
 
   customPlot <- list(
     theme_bw(base_size = 12),
@@ -229,7 +233,7 @@ ITDRMS.plot <- function(
   cat("Curve plotting in progress...\n")
   if(ncores==1) {
     pb <- txtProgressBar(min=0, max=length(merged), style=3, initial="")
-    plots <- progress_lapply(merged, function(mergeddata) ITDRMS:::plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
+    plots <- progress_lapply(merged, function(mergeddata) plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
     close(pb)
     names(plots) <- names(merged)
   } else {
@@ -244,7 +248,7 @@ ITDRMS.plot <- function(
         merged,
         function(mergeddata) {
           pr()  
-          ITDRMS:::plot.ITDRcurve(
+          plot.ITDRcurve(
             mergeddata, fakedata, print.stats, hits,
             ratio_columns, conditions, scale, pallete
           )
@@ -297,17 +301,17 @@ ITDRMS.plot <- function(
   legenddata$value <- sample(0:1000000,size=nrow(legenddata))/1000000
   legenddata$condition <- factor(legenddata$condition,levels=gtools::mixedsort(unique(legenddata$condition)))
   
-  legendplot <- ggplot(legenddata, aes(x=Dose,y=value)) +
-    geom_point(aes(color=condition)) +
-    geom_line(aes(color=condition)) +
-    customPlot +
-    scale_linetype_manual(name="Replicate",values=linetypes) +
-    guides(color=guide_legend(title.position="top",title.hjust=0.5,nrow=1, ncol=length(conditions))) +
-    scale_color_manual(name="Dose (μM)",values=pallete)
-  
-  cond_legend <- get_legend(legendplot)
-  
   suppressMessages({
+    legendplot <- ggplot(legenddata, aes(x=Dose,y=value)) +
+      geom_point(aes(color=condition)) +
+      geom_line(aes(color=condition)) +
+      customPlot +
+      scale_linetype_manual(name="Replicate",values=linetypes) +
+      guides(color=guide_legend(title.position="top",title.hjust=0.5,nrow=1, ncol=length(conditions))) +
+      scale_color_manual(name="Dose (μM)",values=pallete)
+    
+    invisible(cond_legend <- get_legend(legendplot))
+  
     plots <- lapply(plots, function(x) x + theme(axis.text=element_text(size=6),
                                                  plot.title=element_text(hjust=0.5, size=8),
                                                  axis.title=element_blank(),
@@ -324,66 +328,112 @@ ITDRMS.plot <- function(
     }
   }
   
-
   layout <- "
   AB
   #C"
   
   glob_lab <- "Fraction soluble"
+  # y_lab <- 
+  #   ggplot() + 
+  #   annotate(geom = "text", x = 1, y = 1, label = glob_lab, angle = 90) +
+  #   coord_cartesian(clip = "off")+
+  #   theme_void()
+  y_lab <- textGrob(
+    "Fraction soluble",
+    rot = 90,
+    gp = gpar(fontsize = 12)
+  )
   
-  emptyplot <- ggplot() + customPlot + theme(panel.border=element_blank())
-  eplist=list()
-  for (ep in 1:20) {
-    eplist[[ep]]=emptyplot
+  render_page <- function(page_plots, temp.folder, pdf.name, y_lab, cond_legend, 
+                          layout, plots_per_page, pr = NULL) {
+    
+    page_index <- names(page_plots)[1]
+    temp_file <- file.path(temp.folder, paste0(pdf.name, "_page_", page_index, ".pdf"))
+    
+    if(length(page_plots) < plots_per_page) {
+      emptyplot <- ggplot() + theme(panel.border = element_blank(), 
+                                    panel.background = element_rect(fill = "white"))
+      epno <- plots_per_page - length(page_plots)
+      eplist <- list()
+      for (ep in 1:epno) eplist[[ep]] <- emptyplot
+      page_plots <- c(page_plots, eplist)
+    }
+    
+    pdf(temp_file, width = 10, height = 14.5)
+    suppressWarnings(
+      print(
+        patchwork::wrap_elements(y_lab) +
+          patchwork::wrap_plots(page_plots, ncol = 4, nrow = 5) +
+          patchwork::wrap_elements(cond_legend) +
+          patchwork::plot_layout(design = layout, heights = c(1, 0.05), widths = c(0.1, 1))
+      )
+    )
+    dev.off()
+    
+    if (!is.null(pr)) tryCatch(pr(), warning = function(w) NULL)
+    
+    return(temp_file)  # full path to temp location
   }
-  y_lab <- 
-    ggplot() + 
-    annotate(geom = "text", x = 1, y = 1, label = glob_lab, angle = 90) +
-    coord_cartesian(clip = "off")+
-    theme_void()
+
+  environment(render_page) <- asNamespace("ITDRMS")
   
   # Split plots into pages
-  plot_chunks <- split(plots, ceiling(seq_along(plots)/plots_per_page))
+  plot_chunks <- split(plots, (seq_along(plots) - 1) %/% 20)
+  
+  # prepare temp folder
+  temp.folder <- tempfile()  # generates a unique path
+  dir.create(temp.folder)    # creates it in the main session's tempdir
   
   if(ncores<=1) {
     pb <- txtProgressBar(min=0, max=length(plot_chunks), style=3, initial="")
-    pdf_pages <- progress_lapply(plot_chunks, function(pc) ITDRMS:::render_page(pc, pdf.folder, pdf.name, y_lab, cond_legend, layout,plots_per_page),pb)
+    pdf_pages <- progress_lapply(plot_chunks, function(pc) render_page(pc, temp.folder, pdf.name, y_lab, cond_legend, layout,plots_per_page),pb)
     close(pb)
   } else {
-    
+
     plan(multisession, workers = ncores)
     handlers("txtprogressbar")  # or "progress" for RStudio
+    options(future.globals.maxSize = ram * 1024^3)
+    handlers(
+      handler_txtprogressbar(
+        reporters = list(
+          on_message = function(...) NULL  # silence
+        )
+      )
+    )
+    
+    
+    default_warning_handler <- getOption("warn")
+    options(warn = -1)  # suppress all warnings
+    
     
     with_progress({
-      pr <- progressor(steps = length(plot_chunks))
+      pr <- progressor(steps = length(plot_chunks))  
       
       pdf_pages <- future_map(
-        plot_chunks,
-        function(pc) {
-          result <- render_page(
-            pc, pdf.folder, pdf.name, y_lab, cond_legend, layout, plots_per_page
-          )
-          pr()
-          result
-        },
+        plot_chunks, render_page, temp.folder, pdf.name = pdf.name, y_lab = y_lab, cond_legend = cond_legend, 
+        layout = layout, plots_per_page = plots_per_page, pr = pr,
         .options = furrr_options(
-          packages = c("patchwork", "ggplot2","ITDRMS"),
-          globals = c("pdf.folder", "pdf.name", "y_lab", "cond_legend", "layout", "plots_per_page","pr"),
-          chunk_size=5
+          scheduling = Inf,
+          packages = c("patchwork", "ggplot2", "grDevices","progressr"),
+          globals = list(
+            render_page=render_page, temp.folder=temp.folder, pdf.name=pdf.name,y_lab=y_lab,
+            cond_legend=cond_legend,layout=layout,plots_per_page=plots_per_page
+          )
         )
       )
     })
-    plan(sequential) 
+    plan(sequential)
+    options(warn = default_warning_handler)
   }
- 
+
   # Remove any failed pages
   pdf_pages <- pdf_pages[!sapply(pdf_pages, is.null)]
-  
+
   # combine pdf pages
   output_pdf <- file.path(pdf.folder, paste0(pdf.name, ".pdf"))
   qpdf::pdf_combine(input = pdf_pages, output = output_pdf)
 
-  suppressMessages(file.remove(unlist(pdf_pages)))
+  invisible(suppressMessages(file.remove(unlist(pdf_pages))))
   cat("Final PDF saved to: ", output_pdf,"\n")
   
   return(output)
