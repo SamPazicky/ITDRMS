@@ -25,6 +25,8 @@
 #' @import patchwork
 #' @import furrr
 #' @importFrom qpdf pdf_combine
+#' @import progressr
+#' @importFrom future plan
 #' 
 #' @return A list of all plots.
 #' @examples 
