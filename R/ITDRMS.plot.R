@@ -26,9 +26,8 @@
 #' @import furrr
 #' @importFrom qpdf pdf_combine
 #' @import progressr
-#' @importFrom future plan
-#' @importFrom grid textGrob
-#' @importFrom grid gpar
+#' @import future
+#' @importFrom grid textGrob gpar
 #' 
 #' @return A list of all plots.
 #' @examples 
