@@ -26,9 +26,8 @@
 #' @import furrr
 #' @importFrom qpdf pdf_combine
 #' @import progressr
-#' @import future
+#' @importFrom future plan multisession
 #' @importFrom grid textGrob gpar
-#' 
 #' @return A list of all plots.
 #' @examples 
 #' data_plotted <- ITDRMS.plot(data_fitted$data, data_fitted$fits, label.col="label",ncores=4)
