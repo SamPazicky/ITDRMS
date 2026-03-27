@@ -227,15 +227,24 @@ ITDRMS.plot <- function(
       !is.null(.x$fit) && length(.x$fit) > 0
     })
   
-  plots <- list()
-  # plotelems <- readRDS("inst/extdata/plotelems.RDS")
-  plotelems <- system.file("extdata", "plotelems.RDS", package = "ITDRMS")
-  plotelems <- readRDS(plotelems)
   
+  # save 
+  fakemerged <- list(
+    data = setNames(data.table::data.table(id="fake", condition=factor(gtools::mixedsort(unique(data$condition))), label="fake", matrix(0.5, nrow=length(unique(data$condition)), ncol=length(ratio_columns))), c("id","condition","label", as.character(ratio_columns))),
+    fit  = setNames(lapply(gtools::mixedsort(unique(data$condition)), function(cond) list(model_type="LL4", coef=c("b:(Intercept)"=1,"c:(Intercept)"=0.5,"e:(Intercept)"=1))), paste("fake", gtools::mixedsort(unique(data$condition)), sep=";"))
+  )
+  
+  # create plotelems
+  fakeplot <- plot.ITDRcurve(fakemerged, fakedata, print.stats, hits, ratio_columns, conditions, scale, pallete, strip.elems=FALSE)
+  plotelems <- fakeplot[c("theme","scales","guides","coordinates","facet")]
+  rm(fakeplot,fakemerged)
+  
+  plots <- list()
+ 
   cat("Curve plotting in progress...\n")
   if(ncores==1) {
     pb <- txtProgressBar(min=0, max=length(merged), style=3, initial="")
-    plots <- progress_lapply(merged, function(mergeddata) plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
+    plots <- ITDRMS:::progress_lapply(merged, function(mergeddata) plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
     close(pb)
     names(plots) <- names(merged)
   } else {

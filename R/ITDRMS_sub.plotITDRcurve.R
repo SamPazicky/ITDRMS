@@ -1,5 +1,5 @@
 #` @keywords internal
-plot.ITDRcurve <- function(mergeddata, fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete) {
+plot.ITDRcurve <- function(mergeddata, fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete,strip.elems=TRUE) {
   
   suppressPackageStartupMessages({
     library(tidyverse)
@@ -87,13 +87,16 @@ plot.ITDRcurve <- function(mergeddata, fakedata,print.stats,hits,ratio_columns,c
       plot.title = element_text(size = 8, hjust = 0.5)
     )
   
-  plot$plot_env <- NULL
-  plot$mapping <- NULL
-  plot$theme <- NULL
-  plot$scales <- NULL
-  plot$guides <- NULL
-  plot$coordinates <- NULL
-  plot$facet <- NULL
+  if(strip.elems) {
+    plot$plot_env <- NULL
+    plot$mapping <- NULL
+    plot$theme <- NULL
+    plot$scales <- NULL
+    plot$guides <- NULL
+    plot$coordinates <- NULL
+    plot$facet <- NULL
+  }
+  
   
   # plotelems <- plot[c("theme","scales","guides","coordinates","facet")] #
   # saveRDS(plotelems,"inst/extdata/plotelems.RDS")
