@@ -26,7 +26,7 @@
 #' @import furrr
 #' @importFrom qpdf pdf_combine
 #' @import progressr
-#' @importFrom future plan multisession
+#' @importFrom future plan multisession sequential
 #' @importFrom grid textGrob gpar
 #' @return A list of all plots.
 #' @examples 
@@ -244,7 +244,7 @@ ITDRMS.plot <- function(
   cat("Curve plotting in progress...\n")
   if(ncores==1) {
     pb <- txtProgressBar(min=0, max=length(merged), style=3, initial="")
-    plots <- ITDRMS:::progress_lapply(merged, function(mergeddata) plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
+    plots <- progress_lapply(merged, function(mergeddata) plot.ITDRcurve(mergeddata,fakedata,print.stats,hits,ratio_columns,conditions,scale,pallete),pb)
     close(pb)
     names(plots) <- names(merged)
   } else {

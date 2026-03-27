@@ -15,6 +15,7 @@
 #' @import drc
 #' @import progressr
 #' @import furrr
+#' @importFrom future plan multisession sequential
 #' 
 #' @return A list with three elements. $data is a data frame with the fitted data, $fits is a list with fit objects and $curvy_controls is a data frame with those proteins, that show dose-response behaviour at the lowest temperature (baseline has a sigmoid shape).
 #' @examples 
